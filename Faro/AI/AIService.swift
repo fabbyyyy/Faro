@@ -75,6 +75,7 @@ struct FoundationModelsAIService: AIProcessingServiceProtocol {
         return await fallback.classifyEvidence(text: text)
     }
 
+
     func suggestTimelineEvents(from text: String, referenceDate: Date) async -> [TimelineEventSuggestion] {
         // La detección de horas es determinista (regex compartida);
         // el modelo solo redacta el título sugerido.

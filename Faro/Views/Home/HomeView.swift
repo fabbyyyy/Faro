@@ -185,12 +185,19 @@ struct EthicsNoticeView: View {
             .accessibilityHint("Una pregunta corta a la vez, más sencillo bajo estrés")
             .faroEntrance(visible: appeared, delay: 0.36)
 
+            Button { onContinue(.posterImport) } label: {
+                Label("Tengo un cartel o ficha", systemImage: "text.viewfinder")
+            }
+            .buttonStyle(FaroSecondaryButtonStyle())
+            .accessibilityHint("Fotografía un cartel de búsqueda y FARO extrae los datos para que los revises")
+            .faroEntrance(visible: appeared, delay: 0.39)
+
             Text("Como te sea más cómodo. Puedes saltar cualquier pregunta.")
                 .font(.footnote)
                 .foregroundStyle(FaroTheme.secondaryText)
                 .frame(maxWidth: .infinity)
                 .padding(.bottom, 14)
-                .faroEntrance(visible: appeared, delay: 0.39)
+                .faroEntrance(visible: appeared, delay: 0.42)
         }
         .padding(.horizontal, FaroTheme.screenPadding)
         .background(FaroTheme.background)

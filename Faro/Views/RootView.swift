@@ -19,6 +19,8 @@ final class AppRouter {
         case conversational
         /// Una pregunta por pantalla, respuestas cortas (modo bajo estrés).
         case guided
+        /// Fotografiar un cartel de búsqueda existente y extraer sus datos.
+        case posterImport
     }
 
     var activeCase: CaseFile?
@@ -31,20 +33,41 @@ struct RootView: View {
     @State private var router = AppRouter()
     @Environment(\.modelContext) private var modelContext
 
+    /// El cover del sistema desliza desde abajo; la importación de cartel
+    /// trae su propia animación (pill → pantalla completa), así que se
+    /// presenta como overlay y no entra por aquí.
+    private var coverPresented: Binding<Bool> {
+        Binding(
+            get: { router.showingCrisisFlow && router.intakeMode != .posterImport },
+            set: { router.showingCrisisFlow = $0 }
+        )
+    }
+
     var body: some View {
-        Group {
-            if let activeCase = router.activeCase {
-                CaseContainerView(caseFile: activeCase)
-            } else {
-                HomeView()
+        ZStack {
+            Group {
+                if let activeCase = router.activeCase {
+                    CaseContainerView(caseFile: activeCase)
+                } else {
+                    HomeView()
+                }
+            }
+
+            // La cámara del cartel emerge desde el Dynamic Island sobre
+            // la pantalla actual, sin transición del sistema.
+            if router.showingCrisisFlow && router.intakeMode == .posterImport {
+                PosterImportView()
+                    .zIndex(10)
+                    .transition(.opacity)
             }
         }
         .environment(router)
-        .fullScreenCover(isPresented: $router.showingCrisisFlow) {
+        .fullScreenCover(isPresented: coverPresented) {
             Group {
                 switch router.intakeMode {
                 case .conversational: ChatIntakeView()
                 case .guided:         CrisisModeView()
+                case .posterImport:   EmptyView()
                 }
             }
             .environment(router)
