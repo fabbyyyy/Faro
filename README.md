@@ -1,7 +1,5 @@
 # FARO
 
-> **FARO no promete encontrar a una persona. Promete que una familia no pierda las primeras horas tratando de entender qué hacer.**
-
 App para iPhone y iPad construida con **Swift, SwiftUI y SwiftData**, con **IA 100 % en el dispositivo**. Desarrollada para el **Swift Challenge Fest 2026** — reto *Human-Centered AI resolviendo un ODS*.
 
 ---
