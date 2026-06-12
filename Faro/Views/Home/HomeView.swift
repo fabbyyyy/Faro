@@ -20,6 +20,12 @@ struct HomeView: View {
     @State private var appeared = false
 
     var body: some View {
+        NavigationStack {
+            homeContent
+        }
+    }
+
+    private var homeContent: some View {
         VStack(spacing: 0) {
             Spacer()
             heroSection
@@ -50,8 +56,8 @@ struct HomeView: View {
         .onAppear {
             withAnimation { appeared = true }
         }
-        .sheet(isPresented: $showingMyCases) {
-            MyCasesGridView(cases: Array(cases)) { caseFile in
+        .navigationDestination(isPresented: $showingMyCases) {
+            MyCasesGridView { caseFile in
                 router.activeCase = caseFile
             }
         }
@@ -134,37 +140,179 @@ struct HomeView: View {
 // MARK: - Mis casos: cuadrícula con foto y nombre
 
 struct MyCasesGridView: View {
-    let cases: [CaseFile]
     let onOpen: (CaseFile) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \CaseFile.updatedAt, order: .reverse) private var cases: [CaseFile]
+
+    @State private var isSelecting = false
+    @State private var selectedIDs = Set<UUID>()
+    @State private var pendingDeletion: [CaseFile] = []
+
+    private var selectedCases: [CaseFile] {
+        cases.filter { selectedIDs.contains($0.id) }
+    }
+
+    private var pendingCases: [CaseFile] {
+        cases.filter { $0.status != .completed }
+    }
+
+    private var completedCases: [CaseFile] {
+        cases.filter { $0.status == .completed }
+    }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 12),
-                                    GridItem(.flexible(), spacing: 12)],
-                          spacing: 12) {
-                    ForEach(cases) { caseFile in
-                        Button {
-                            dismiss()
-                            onOpen(caseFile)
-                        } label: {
-                            caseTile(caseFile)
-                        }
-                        .buttonStyle(FaroCardButtonStyle())
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                if !pendingCases.isEmpty {
+                    sectionHeader("Pendientes")
+                    casesGrid(pendingCases)
+                }
+                if !completedCases.isEmpty {
+                    sectionHeader("Completados")
+                        .padding(.top, pendingCases.isEmpty ? 0 : 16)
+                    casesGrid(completedCases)
+                }
+            }
+            .padding(FaroTheme.screenPadding)
+        }
+        .background(FaroTheme.background)
+        .navigationTitle("Mis casos")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(isSelecting ? "Cancelar" : "Seleccionar") {
+                    withAnimation(FaroTheme.springSnappy) {
+                        isSelecting.toggle()
+                        selectedIDs.removeAll()
                     }
                 }
-                .padding(FaroTheme.screenPadding)
             }
-            .background(FaroTheme.background)
-            .navigationTitle("Mis casos")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Listo") { dismiss() }
+        }
+        .safeAreaInset(edge: .bottom) {
+            if isSelecting {
+                selectionActionsBar
+            }
+        }
+        .confirmationDialog(
+            pendingDeletion.count == 1 ? "¿Eliminar este caso?" : "¿Eliminar \(pendingDeletion.count) casos?",
+            isPresented: Binding(
+                get: { !pendingDeletion.isEmpty },
+                set: { if !$0 { pendingDeletion = [] } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Eliminar definitivamente", role: .destructive) {
+                for caseFile in pendingDeletion {
+                    modelContext.delete(caseFile)
+                }
+                try? modelContext.save()
+                pendingDeletion = []
+                selectedIDs.removeAll()
+                isSelecting = false
+            }
+            Button("Cancelar", role: .cancel) { pendingDeletion = [] }
+        } message: {
+            Text("Se borrará todo el expediente de este dispositivo: evidencia, línea de tiempo y documentos. Esta acción no se puede deshacer.")
+        }
+    }
+
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.title3.weight(.bold))
+            .foregroundStyle(.primary)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    private func casesGrid(_ items: [CaseFile]) -> some View {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12),
+                            GridItem(.flexible(), spacing: 12)],
+                  spacing: 12) {
+            ForEach(items) { caseFile in
+                Button {
+                    if isSelecting {
+                        toggleSelection(caseFile)
+                    } else {
+                        dismiss()
+                        onOpen(caseFile)
+                    }
+                } label: {
+                    caseTile(caseFile)
+                        .overlay(alignment: .topTrailing) {
+                            if isSelecting {
+                                selectionBadge(selected: selectedIDs.contains(caseFile.id))
+                            }
+                        }
+                }
+                .buttonStyle(FaroCardButtonStyle())
+                .contextMenu {
+                    Button {
+                        markCompleted([caseFile])
+                    } label: {
+                        Label("Marcar como completado", systemImage: "checkmark.circle")
+                    }
+                    Button(role: .destructive) {
+                        pendingDeletion = [caseFile]
+                    } label: {
+                        Label("Eliminar caso", systemImage: "trash")
+                    }
                 }
             }
+        }
+    }
+
+    // MARK: Selección múltiple
+
+    private func toggleSelection(_ caseFile: CaseFile) {
+        if selectedIDs.contains(caseFile.id) {
+            selectedIDs.remove(caseFile.id)
+        } else {
+            selectedIDs.insert(caseFile.id)
+        }
+    }
+
+    private func selectionBadge(selected: Bool) -> some View {
+        Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+            .font(.system(size: 22))
+            .foregroundStyle(selected ? FaroTheme.night : .white)
+            .background(Circle().fill(.white.opacity(selected ? 1 : 0.25)))
+            .padding(8)
+            .accessibilityHidden(true)
+    }
+
+    private var selectionActionsBar: some View {
+        HStack(spacing: 10) {
+            Button {
+                markCompleted(selectedCases)
+            } label: {
+                Label("Completado", systemImage: "checkmark.circle")
+            }
+            .buttonStyle(SelectionGlassActionButtonStyle())
+
+            Button {
+                pendingDeletion = selectedCases
+            } label: {
+                Label("Eliminar", systemImage: "trash")
+            }
+            .buttonStyle(SelectionGlassActionButtonStyle(tint: FaroTheme.destructive,
+                                                         foreground: .white))
+        }
+        .disabled(selectedIDs.isEmpty)
+        .opacity(selectedIDs.isEmpty ? 0.5 : 1)
+        .padding(.horizontal, FaroTheme.screenPadding)
+        .padding(.vertical, 10)
+        .background(Color.clear)
+    }
+
+    private func markCompleted(_ targets: [CaseFile]) {
+        for caseFile in targets {
+            caseFile.status = .completed
+        }
+        try? modelContext.save()
+        withAnimation(FaroTheme.springSnappy) {
+            selectedIDs.removeAll()
+            isSelecting = false
         }
     }
 
@@ -330,5 +478,45 @@ private struct HomeGlassActionButtonStyle: ButtonStyle {
     @available(iOS 26, *)
     private var glassEffect: Glass {
         prominent ? .regular.tint(FaroTheme.night) : .regular
+    }
+}
+
+private struct SelectionGlassActionButtonStyle: ButtonStyle {
+    var tint: Color?
+    var foreground: Color = FaroTheme.night
+
+    func makeBody(configuration: Configuration) -> some View {
+        if #available(iOS 26, *) {
+            if let tint {
+                label(configuration)
+                    .foregroundStyle(foreground)
+                    .glassEffect(.regular.tint(tint).interactive(), in: .capsule)
+            } else {
+                label(configuration)
+                    .foregroundStyle(foreground)
+                    .glassEffect(.regular.interactive(), in: .capsule)
+            }
+        } else if let tint {
+            label(configuration)
+                .background(tint.opacity(configuration.isPressed ? 0.82 : 1))
+                .foregroundStyle(foreground)
+                .clipShape(Capsule())
+        } else {
+            label(configuration)
+                .background(FaroTheme.surface.opacity(configuration.isPressed ? 0.85 : 1))
+                .foregroundStyle(foreground)
+                .clipShape(Capsule())
+                .overlay(Capsule().strokeBorder(FaroTheme.night.opacity(0.25), lineWidth: 1))
+        }
+    }
+
+    private func label(_ configuration: Configuration) -> some View {
+        configuration.label
+            .font(.headline)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .padding(.horizontal, 18)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .animation(FaroTheme.springSnappy, value: configuration.isPressed)
     }
 }

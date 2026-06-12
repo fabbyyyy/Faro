@@ -222,6 +222,7 @@ struct CaseHistoryRow: View {
             case .inProgress:     return FaroTheme.amber
             case .fichaGenerated: return FaroTheme.night
             case .reportReady:    return FaroTheme.confirmedGreen
+            case .completed:      return FaroTheme.confirmedGreen
             }
         }()
         return Text(caseFile.status.displayName)

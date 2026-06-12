@@ -305,6 +305,7 @@ enum CaseStatus: String, Codable, CaseIterable, Identifiable {
     case inProgress      // Datos en proceso de recopilación
     case fichaGenerated  // Ficha técnica generada
     case reportReady     // Reporte formal listo para presentar
+    case completed       // Caso cerrado por la familia
 
     var id: String { rawValue }
 
@@ -314,6 +315,7 @@ enum CaseStatus: String, Codable, CaseIterable, Identifiable {
         case .inProgress:     return "En proceso"
         case .fichaGenerated: return "Ficha generada"
         case .reportReady:    return "Reporte listo"
+        case .completed:      return "Completado"
         }
     }
 
@@ -323,6 +325,7 @@ enum CaseStatus: String, Codable, CaseIterable, Identifiable {
         case .inProgress:     return 1
         case .fichaGenerated: return 2
         case .reportReady:    return 3
+        case .completed:      return 4
         }
     }
 }
