@@ -25,6 +25,9 @@ final class AppRouter {
 
     var activeCase: CaseFile?
     var showingCrisisFlow = false
+    /// Mantiene abierta la vista "Mis casos" al volver de un caso,
+    /// para regresar a la selección y no al inicio.
+    var showingMyCases = false
     /// Modo elegido para el alta del caso actual.
     var intakeMode: IntakeMode = .conversational
 }

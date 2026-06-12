@@ -16,16 +16,16 @@ struct HomeView: View {
     @Query(sort: \CaseFile.updatedAt, order: .reverse) private var cases: [CaseFile]
 
     @State private var showingEthicsNotice = false
-    @State private var showingMyCases = false
     @State private var appeared = false
 
     var body: some View {
+        @Bindable var router = router
         NavigationStack {
-            homeContent
+            homeContent(showingMyCases: $router.showingMyCases)
         }
     }
 
-    private var homeContent: some View {
+    private func homeContent(showingMyCases: Binding<Bool>) -> some View {
         VStack(spacing: 0) {
             Spacer()
             heroSection
@@ -56,7 +56,7 @@ struct HomeView: View {
         .onAppear {
             withAnimation { appeared = true }
         }
-        .navigationDestination(isPresented: $showingMyCases) {
+        .navigationDestination(isPresented: showingMyCases) {
             MyCasesGridView { caseFile in
                 router.activeCase = caseFile
             }
@@ -114,7 +114,7 @@ struct HomeView: View {
 
             if !cases.isEmpty {
                 Button {
-                    showingMyCases = true
+                    router.showingMyCases = true
                 } label: {
                     Label("Mis casos", systemImage: "rectangle.grid.2x2")
                 }
@@ -234,7 +234,8 @@ struct MyCasesGridView: View {
                     if isSelecting {
                         toggleSelection(caseFile)
                     } else {
-                        dismiss()
+                        // Sin dismiss: al volver del caso se regresa aquí,
+                        // a la selección de casos, no al inicio.
                         onOpen(caseFile)
                     }
                 } label: {
