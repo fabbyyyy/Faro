@@ -37,7 +37,7 @@ struct EmptyStateView: View {
 
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
-                    .buttonStyle(FaroSecondaryButtonStyle(fullWidth: false))
+                    .buttonStyle(FaroGlassActionButtonStyle(prominent: true, fullWidth: false))
                     .padding(.top, 6)
                     .faroEntrance(visible: appeared, delay: 0.15)
             }

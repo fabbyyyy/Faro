@@ -181,6 +181,43 @@ struct FaroSecondaryButtonStyle: ButtonStyle {
     }
 }
 
+/// Botón Liquid Glass para acciones de pantalla.
+/// Usa `prominent` cuando la acción tiene fill/tint; deja `prominent` en false
+/// para controles glass claros.
+struct FaroGlassActionButtonStyle: ButtonStyle {
+    var prominent: Bool = false
+    var fullWidth: Bool = true
+    var tint: Color = FaroTheme.night
+
+    func makeBody(configuration: Configuration) -> some View {
+        if #available(iOS 26, *) {
+            if prominent {
+                label(configuration)
+                    .foregroundStyle(Color(light: .white, dark: Color(red: 0.043, green: 0.075, blue: 0.122)))
+                    .glassEffect(.regular.tint(tint).interactive(), in: .capsule)
+            } else {
+                label(configuration)
+                    .foregroundStyle(FaroTheme.night)
+                    .glassEffect(.regular.interactive(), in: .capsule)
+            }
+        } else if prominent {
+            FaroPrimaryButtonStyle(fullWidth: fullWidth).makeBody(configuration: configuration)
+        } else {
+            FaroSecondaryButtonStyle(fullWidth: fullWidth).makeBody(configuration: configuration)
+        }
+    }
+
+    private func label(_ configuration: Configuration) -> some View {
+        configuration.label
+            .font(.headline)
+            .frame(maxWidth: fullWidth ? .infinity : nil)
+            .padding(.vertical, 16)
+            .padding(.horizontal, 20)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .animation(FaroTheme.springSnappy, value: configuration.isPressed)
+    }
+}
+
 /// Botón silencioso para "Saltar" / "No lo sé todavía": sin culpa, sin peso visual.
 struct FaroQuietButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {

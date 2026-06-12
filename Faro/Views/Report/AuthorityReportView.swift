@@ -80,7 +80,7 @@ struct AuthorityReportView: View {
                     if isEditing { caseFile.touch(); try? modelContext.save() }
                     isEditing.toggle()
                 }
-                .font(.subheadline.weight(.medium))
+                .buttonStyle(FaroGlassActionButtonStyle(fullWidth: false))
             }
 
             if isEditing {
@@ -91,7 +91,7 @@ struct AuthorityReportView: View {
                 .font(.caption.monospaced())
                 .frame(minHeight: 380)
                 .padding(8)
-                .background(FaroTheme.background)
+                .background(FaroTheme.surface)
                 .clipShape(RoundedRectangle(cornerRadius: FaroTheme.smallCornerRadius, style: .continuous))
                 .accessibilityLabel("Contenido del reporte, editable")
             } else {
@@ -99,12 +99,11 @@ struct AuthorityReportView: View {
                     .font(.caption.monospaced())
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(12)
-                    .background(FaroTheme.background)
+                    .background(FaroTheme.surface)
                     .clipShape(RoundedRectangle(cornerRadius: FaroTheme.smallCornerRadius, style: .continuous))
                     .textSelection(.enabled)
             }
         }
-        .faroCard()
     }
 
     private func exportSection(_ report: GeneratedReport) -> some View {
@@ -117,20 +116,19 @@ struct AuthorityReportView: View {
             } label: {
                 Label("Exportar como PDF", systemImage: "doc.badge.arrow.up")
             }
-            .buttonStyle(FaroPrimaryButtonStyle())
+            .buttonStyle(FaroGlassActionButtonStyle(prominent: true))
 
             if let pdfURL {
                 ShareLink(item: pdfURL) {
                     Label("Compartir PDF", systemImage: "square.and.arrow.up")
                 }
-                .buttonStyle(FaroSecondaryButtonStyle())
+                .buttonStyle(FaroGlassActionButtonStyle())
             }
 
             Text("Este reporte organiza información para la familia. No constituye una denuncia oficial ni un documento legal.")
                 .font(.caption)
                 .foregroundStyle(FaroTheme.secondaryText)
         }
-        .faroCard()
     }
 
     private func generate() {
@@ -152,8 +150,11 @@ struct AuthorityReportPreview: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 8) {
-                Image(systemName: "light.beacon.max")
-                    .foregroundStyle(FaroTheme.amber)
+                Image("faro")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 24, height: 24)
+                    .accessibilityHidden(true)
                 Text("FARO · Expediente organizado")
                     .font(.headline)
             }

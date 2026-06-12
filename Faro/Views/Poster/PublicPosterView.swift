@@ -19,8 +19,8 @@ struct PublicPosterView: View {
     @State private var tone: PosterTone = .community
     @State private var generatingText = false
     @State private var pdfURL: URL?
-    @State private var posterImage: UIImage?
     @State private var posterPhotoItem: PhotosPickerItem?
+    @State private var showingEditSheet = false
 
     private var poster: PublicPoster? { caseFile.posters.first }
 
@@ -46,6 +46,19 @@ struct PublicPosterView: View {
         .background(FaroTheme.background)
         .navigationTitle("Ficha pública")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if poster != nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Editar") { showingEditSheet = true }
+                }
+            }
+        }
+        .sheet(isPresented: $showingEditSheet) {
+            if let poster {
+                posterEditSheet(poster)
+                    .presentationDetents([.large])
+            }
+        }
     }
 
     // MARK: - Contenido de la ficha
@@ -56,58 +69,47 @@ struct PublicPosterView: View {
         PublicPosterPreview(caseFile: caseFile, poster: poster)
             .frame(maxWidth: .infinity)
 
-        // Edición de los campos visibles (sin tocar los datos del caso)
-        posterEditCard(poster)
-
         // Aprobación explícita de la familia
         approvalCard(poster)
 
-        // Qué se incluyó
-        VStack(alignment: .leading, spacing: 10) {
-            FaroSectionHeader(title: "Qué incluye")
-            ForEach(poster.includedFields, id: \.self) { field in
-                Label(field, systemImage: "checkmark.circle")
-                    .font(.subheadline)
-                    .foregroundStyle(.primary)
-            }
+        // Qué incluye y qué se excluyó — en su propia vista
+        NavigationLink {
+            PosterDisclosureView(poster: poster)
+        } label: {
+            Label("Datos en la ficha", systemImage: "info.circle")
         }
-        .faroCard()
+        .buttonStyle(FaroGlassActionButtonStyle())
 
-        // Qué se excluyó y por qué (núcleo ético de la función)
-        if !poster.excludedFields.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                FaroSectionHeader(title: "Qué se excluyó y por qué",
-                                  subtitle: "Proteger esta información también protege la búsqueda.")
-                ForEach(poster.excludedFields) { field in
-                    HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: "exclamationmark.lock")
-                            .foregroundStyle(FaroTheme.amber)
-                            .padding(.top, 2)
-                            .accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(field.fieldName)
-                                .font(.subheadline.weight(.medium))
-                            Text(field.reason)
-                                .font(.caption)
-                                .foregroundStyle(FaroTheme.secondaryText)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
+        // Exportación (solo PDF)
+        exportSection(poster)
+
+        // Texto corto para difusión, directo sobre el fondo
+        shareTextSection(poster)
+    }
+
+    /// Sheet de edición: campos visibles de la ficha + contacto.
+    private func posterEditSheet(_ poster: PublicPoster) -> some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: FaroTheme.sectionSpacing) {
+                    posterEditCard(poster)
+                    contactCard(poster)
+                }
+                .padding(FaroTheme.screenPadding)
+            }
+            .background(FaroTheme.background)
+            .navigationTitle("Editar ficha")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Listo") {
+                        caseFile.touch()
+                        try? modelContext.save()
+                        showingEditSheet = false
                     }
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel("Excluido: \(field.fieldName). \(field.reason)")
                 }
             }
-            .faroCard()
         }
-
-        // Contacto visible (editable por la familia)
-        contactCard(poster)
-
-        // Texto corto para difusión
-        shareTextCard(poster)
-
-        // Exportación
-        exportSection(poster)
     }
 
     private func approvalCard(_ poster: PublicPoster) -> some View {
@@ -199,7 +201,7 @@ struct PublicPosterView: View {
                     Label(poster.overridePhotoData == nil ? "Usar otra foto" : "Cambiar foto",
                           systemImage: "photo.on.rectangle")
                 }
-                .buttonStyle(FaroSecondaryButtonStyle(fullWidth: false))
+                .buttonStyle(FaroGlassActionButtonStyle(fullWidth: false))
                 if poster.overridePhotoData != nil {
                     Button("Usar la foto del caso") { poster.overridePhotoData = nil }
                         .font(.caption)
@@ -236,7 +238,7 @@ struct PublicPosterView: View {
         .faroCard()
     }
 
-    private func shareTextCard(_ poster: PublicPoster) -> some View {
+    private func shareTextSection(_ poster: PublicPoster) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             FaroSectionHeader(title: "Texto para WhatsApp y redes",
                               subtitle: "Sobrio y claro. Elige el tono; nunca exagera ni inventa.")
@@ -275,7 +277,7 @@ struct PublicPosterView: View {
                 ShareLink(item: poster.shareText) {
                     Label("Compartir texto", systemImage: "square.and.arrow.up")
                 }
-                .buttonStyle(FaroSecondaryButtonStyle(fullWidth: false))
+                .buttonStyle(FaroGlassActionButtonStyle(fullWidth: false))
                 .disabled(!poster.approvedByFamily)
 
                 if !poster.approvedByFamily {
@@ -285,57 +287,35 @@ struct PublicPosterView: View {
                 }
             } else {
                 Button("Redactar texto de difusión") { regenerateShareText() }
-                    .buttonStyle(FaroSecondaryButtonStyle(fullWidth: false))
+                    .buttonStyle(FaroGlassActionButtonStyle(fullWidth: false))
             }
         }
-        .faroCard()
     }
 
     private func exportSection(_ poster: PublicPoster) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            FaroSectionHeader(title: "Exportar ficha")
-
-            HStack(spacing: 10) {
-                Button {
-                    exportPDF(poster)
-                } label: {
-                    Label("PDF", systemImage: "doc.badge.arrow.up")
-                }
-                .buttonStyle(FaroSecondaryButtonStyle())
-
-                Button {
-                    posterImage = services.pdfExport.exportImage(
-                        view: PublicPosterPreview(caseFile: caseFile, poster: poster)
-                    )
-                } label: {
-                    Label("Imagen", systemImage: "photo.badge.arrow.down")
-                }
-                .buttonStyle(FaroSecondaryButtonStyle())
+            Button {
+                exportPDF(poster)
+            } label: {
+                Label("Exportar ficha", systemImage: "doc.badge.arrow.up")
             }
+            .buttonStyle(FaroGlassActionButtonStyle(prominent: true))
             .disabled(!poster.approvedByFamily)
 
             if let pdfURL {
                 ShareLink(item: pdfURL) {
                     Label("Compartir PDF generado", systemImage: "square.and.arrow.up")
                 }
-                .buttonStyle(FaroPrimaryButtonStyle())
-            }
-
-            if let posterImage {
-                ShareLink(item: Image(uiImage: posterImage),
-                          preview: SharePreview("Ficha de búsqueda", image: Image(uiImage: posterImage))) {
-                    Label("Compartir imagen generada", systemImage: "square.and.arrow.up")
-                }
-                .buttonStyle(FaroPrimaryButtonStyle())
+                .buttonStyle(FaroGlassActionButtonStyle())
             }
 
             if !poster.approvedByFamily {
                 Text("La exportación se habilita cuando la familia aprueba la ficha.")
                     .font(.caption)
                     .foregroundStyle(FaroTheme.secondaryText)
+                    .frame(maxWidth: .infinity, alignment: .center)
             }
         }
-        .faroCard()
     }
 
     // MARK: - Acciones
@@ -376,6 +356,60 @@ struct PublicPosterView: View {
             view: PublicPosterPreview(caseFile: caseFile, poster: poster),
             fileName: "Ficha-\(caseFile.person?.name.replacingOccurrences(of: " ", with: "-") ?? "busqueda")"
         )
+    }
+}
+
+// MARK: - Qué incluye y qué se excluyó
+
+struct PosterDisclosureView: View {
+    let poster: PublicPoster
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: FaroTheme.sectionSpacing) {
+                VStack(alignment: .leading, spacing: 10) {
+                    FaroSectionHeader(title: "Qué incluye")
+                    ForEach(poster.includedFields, id: \.self) { field in
+                        Label(field, systemImage: "checkmark.circle")
+                            .font(.subheadline)
+                            .foregroundStyle(.primary)
+                    }
+                }
+                .faroCard()
+
+                if !poster.excludedFields.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        FaroSectionHeader(title: "Qué se excluyó y por qué",
+                                          subtitle: "Proteger esta información también protege la búsqueda.")
+                        ForEach(poster.excludedFields) { field in
+                            HStack(alignment: .top, spacing: 10) {
+                                Image(systemName: "exclamationmark.lock")
+                                    .foregroundStyle(FaroTheme.amber)
+                                    .padding(.top, 2)
+                                    .accessibilityHidden(true)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(field.fieldName)
+                                        .font(.subheadline.weight(.medium))
+                                    Text(field.reason)
+                                        .font(.caption)
+                                        .foregroundStyle(FaroTheme.secondaryText)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel("Excluido: \(field.fieldName). \(field.reason)")
+                        }
+                    }
+                    .faroCard()
+                }
+            }
+            .padding(FaroTheme.screenPadding)
+            .frame(maxWidth: 700)
+            .frame(maxWidth: .infinity)
+        }
+        .background(FaroTheme.background)
+        .navigationTitle("Datos en la ficha")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
