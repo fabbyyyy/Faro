@@ -2,7 +2,10 @@
 //  FaroApp.swift
 //  Faro
 //
-//  Created by Fabian Garza on 11/06/26.
+//  FARO no promete encontrar a una persona. Promete que una familia
+//  no pierda las primeras horas tratando de entender qué hacer.
+//
+//  Local-first: todo el expediente vive en SwiftData, en el dispositivo.
 //
 
 import SwiftUI
@@ -10,22 +13,32 @@ import SwiftData
 
 @main
 struct FaroApp: App {
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
+            CaseFile.self,
+            MissingPerson.self,
+            EvidenceItem.self,
+            TimelineEvent.self,
+            TrustedContact.self,
+            CaseTask.self,
+            CaseQuestion.self,
+            LocationRecord.self,
+            GeneratedReport.self,
+            PublicPoster.self
         ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            return try ModelContainer(for: schema, configurations: [configuration])
         } catch {
-            fatalError("Could not create ModelContainer: \(error)")
+            fatalError("No se pudo crear el contenedor de datos local: \(error)")
         }
     }()
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView()
         }
         .modelContainer(sharedModelContainer)
     }
