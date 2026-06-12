@@ -68,6 +68,9 @@ struct CaseContainerView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     @State private var selectedSection: CaseSection? = .dashboard
+    /// Ruta del stack en iPhone: permite navegar programáticamente
+    /// (p. ej. "Editar" desde el panel de datos lleva al chat).
+    @State private var compactPath: [CaseSection] = []
 
     var body: some View {
         if sizeClass == .regular {
@@ -149,8 +152,8 @@ struct CaseContainerView: View {
     // MARK: - iPhone: pila guiada
 
     private var compactLayout: some View {
-        NavigationStack {
-            CaseDashboardView(caseFile: caseFile, onNavigate: nil)
+        NavigationStack(path: $compactPath) {
+            CaseDashboardView(caseFile: caseFile, onNavigate: { compactPath.append($0) })
                 .navigationDestination(for: CaseSection.self) { section in
                     sectionView(section)
                 }

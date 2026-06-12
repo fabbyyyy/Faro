@@ -86,6 +86,28 @@ struct IntakeQuestion: Identifiable, Hashable {
     }
 
     var id: String { key }
+
+    /// Símbolo SF relacionado con el dato, para listas y paneles.
+    var symbolName: String {
+        switch key {
+        case "personName":          return "person.text.rectangle"
+        case "age":                 return "calendar"
+        case "photo":               return "photo"
+        case "lastSeenTime":        return "clock"
+        case "lastSeenPlace":       return "mappin.and.ellipse"
+        case "clothing":            return "tshirt"
+        case "physicalDescription": return "figure.stand"
+        case "distinguishingMarks": return "person.fill.viewfinder"
+        case "medical":             return "cross.case"
+        case "phone":               return "iphone"
+        case "transport":           return "bus"
+        case "frequentPlaces":      return "map"
+        case "companions":          return "person.2"
+        case "trustedContact":      return "person.crop.circle.badge.checkmark"
+        case "evidenceAvailable":   return "tray.full"
+        default:                    return "circle.dashed"
+        }
+    }
 }
 
 /// Repositorio del flujo base. Orden por prioridad.
@@ -137,6 +159,18 @@ enum IntakeQuestionBank {
             reaskQuestion: "Cuando lo tengas: ¿dónde fue la última vez que se supo de ella?",
             sampleAnswers: ["saliendo de la uni", "en la parada del camión", "no sabemos"],
             rationale: "Ayuda a ubicar la última zona conocida para orientar la búsqueda."
+        ),
+        IntakeQuestion(
+            key: "photo",
+            category: .identification,
+            priority: 45,
+            humanQuestion: "¿Tienes una foto reciente de ella? Puedes adjuntarla con el botón de la cámara, aquí en el chat.",
+            formalLabel: "Foto reciente",
+            hint: "Una foto clara del rostro ayuda mucho en la ficha de búsqueda.",
+            isRequired: true,
+            reaskQuestion: "Cuando tengas una foto reciente, adjúntala con el botón de la cámara del chat.",
+            sampleAnswers: ["aquí está", "no tengo una a la mano"],
+            rationale: "La foto solo se usa donde tú decidas: ficha, cartel o reporte."
         ),
         IntakeQuestion(
             key: "clothing",
