@@ -1,0 +1,131 @@
+{
+  "fill-specializations" : [
+    {
+      "value" : {
+        "automatic-gradient" : "display-p3:0.00172,0.11355,0.16811,1.00000"
+      }
+    },
+    {
+      "appearance" : "dark",
+      "value" : {
+        "automatic-gradient" : "display-p3:0.00000,0.00000,0.00000,1.00000"
+      }
+    }
+  ],
+  "groups" : [
+    {
+      "layers" : [
+
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    },
+    {
+      "layers" : [
+        {
+          "image-name" : "agua.png",
+          "name" : "agua",
+          "position" : {
+            "scale" : 1.38,
+            "translation-in-points" : [
+              -57.697881391819124,
+              475.5312736286853
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    },
+    {
+      "layers" : [
+        {
+          "image-name" : "piedras.png",
+          "name" : "piedras",
+          "position" : {
+            "scale" : 1.38,
+            "translation-in-points" : [
+              -75.4940044854552,
+              381.6912736286854
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    },
+    {
+      "layers" : [
+        {
+          "image-name" : "faro.svg",
+          "name" : "faro",
+          "position" : {
+            "scale" : 1.38,
+            "translation-in-points" : [
+              -88.09058902976051,
+              -17.83528637131451
+            ]
+          }
+        },
+        {
+          "image-name" : "Group 1.svg",
+          "name" : "Group 1",
+          "opacity" : 0.55,
+          "position" : {
+            "scale" : 1.93,
+            "translation-in-points" : [
+              281.26696367666466,
+              -231.97719914808386
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    },
+    {
+      "hidden" : true,
+      "layers" : [
+
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}
