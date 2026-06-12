@@ -15,6 +15,7 @@ import SwiftUI
 import AVFoundation
 import PhotosUI
 import SwiftData
+import Vision
 
 // MARK: - Vista principal
 
@@ -34,6 +35,9 @@ struct PosterImportView: View {
     @State private var auroraBreathing = false
     @State private var viewfinderVisible = false
     @State private var capturedImage: UIImage?
+    /// Marcos en coordenadas globales para mapear el encuadre a la foto.
+    @State private var guideFrame: CGRect = .zero
+    @State private var previewFrame: CGRect = .zero
     @State private var isProcessing = false
     @State private var errorMessage: String?
     @State private var selectedLibraryItem: PhotosPickerItem?
@@ -42,29 +46,35 @@ struct PosterImportView: View {
 
     var body: some View {
         GeometryReader { geo in
-            ZStack(alignment: .top) {
-                // Lienzo que nace de la pill del Dynamic Island:
-                // negro como bisel, con la aurora encendida adentro.
-                RoundedRectangle(cornerRadius: canvasCornerRadius, style: .continuous)
-                    .fill(.black)
-                    .overlay {
-                        auroraGlow
-                            .padding(.top, auroraTopInset)
-                            .padding([.horizontal, .bottom], auroraEdgeInset)
-                            .clipShape(RoundedRectangle(cornerRadius: auroraCornerRadius,
-                                                        style: .continuous))
-                            .opacity(phase == .island || viewfinderVisible ? 0 : 1)
-                    }
-                    .frame(width: canvasSize(in: geo.size).width,
-                           height: canvasSize(in: geo.size).height)
-                    .padding(.top, phase == .full ? 0 : 11)
-
+            ZStack {
+                // El visor ocupa toda la pantalla desde el principio;
+                // el canvas animado se superpone encima hasta que termina
+                // la animación y viewfinderVisible se vuelve true.
                 if phase == .full {
                     cameraContent
+                        .background(Color.black.ignoresSafeArea())
                         .opacity(viewfinderVisible ? 1 : 0)
                 }
+
+                // Lienzo animado: pill → rectángulo con aurora → se desvanece.
+                if !viewfinderVisible {
+                    RoundedRectangle(cornerRadius: canvasCornerRadius, style: .continuous)
+                        .fill(.black)
+                        .overlay {
+                            auroraGlow
+                                .padding(.top, auroraTopInset)
+                                .padding([.horizontal, .bottom], auroraEdgeInset)
+                                .clipShape(RoundedRectangle(cornerRadius: auroraCornerRadius,
+                                                            style: .continuous))
+                                .opacity(phase == .island ? 0 : 1)
+                        }
+                        .frame(width: canvasSize(in: geo.size).width,
+                               height: canvasSize(in: geo.size).height)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        .padding(.top, phase == .full ? 0 : 11)
+                        .ignoresSafeArea()
+                }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .ignoresSafeArea()
         }
         .statusBarHidden()
@@ -108,11 +118,13 @@ struct PosterImportView: View {
         }
     }
 
+    /// Las esquinas se quedan redondas durante toda la expansión;
+    /// al llenar la pantalla, el radio coincide con el del dispositivo.
     private var canvasCornerRadius: CGFloat {
         switch phase {
         case .island: 19
         case .card:   46
-        case .full:   0
+        case .full:   58
         }
     }
 
@@ -164,41 +176,82 @@ struct PosterImportView: View {
             ZStack(alignment: .bottom) {
                 CameraPreviewView(controller: camera)
                     .ignoresSafeArea()
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
+                        previewFrame = $0
+                    }
 
                 framingGuide
                     .padding(.horizontal, 36)
-                    .padding(.top, 70)
-                    .padding(.bottom, 130)
+                    .padding(.top, 132)
+                    .padding(.bottom, 150)
 
                 shutterBar
                     .padding(.bottom, 36)
             }
-            .overlay(alignment: .topLeading) { closeButton.padding(20) }
             .overlay(alignment: .top) {
-                Text("Encuadra el cartel completo")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.85))
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 7)
-                    .background(.black.opacity(0.35), in: Capsule())
-                    .padding(.top, 24)
+                // Tacha e instrucción emparejadas en la misma fila.
+                ZStack {
+                    Text("Encuadra el cartel completo")
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 7)
+                        .background(.black.opacity(0.35), in: Capsule())
+
+                    HStack {
+                        closeButton
+                        Spacer()
+                    }
+                }
+                .padding(.horizontal, 20)
+                // El visor ignora el safe area, así que el overlay nace en
+                // el borde físico: este padding libra el Dynamic Island.
+                .padding(.top, 64)
             }
         }
     }
 
     /// Esquinas de encuadre: marcan dónde cuadrar el cartel, sin encerrar
-    /// el visor. Proporción vertical, como un cartel impreso.
+    /// el visor. Proporción vertical, como un cartel impreso. La foto se
+    /// recorta exactamente a este marco.
     private var framingGuide: some View {
-        GeometryReader { geo in
-            let size = CGSize(width: geo.size.width, height: geo.size.height)
-            CornerBracketsShape(cornerLength: 26, cornerRadius: 10)
-                .stroke(.white.opacity(0.9), style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                .frame(width: size.width, height: size.height)
-                .shadow(color: .black.opacity(0.35), radius: 3)
+        CornerBracketsShape(cornerLength: 26, cornerRadius: 10)
+            .stroke(.white.opacity(0.9), style: StrokeStyle(lineWidth: 3, lineCap: .round))
+            .shadow(color: .black.opacity(0.35), radius: 3)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
+                guideFrame = $0
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
+    /// Recorta la captura a lo que se veía dentro del marco de encuadre.
+    /// El visor usa aspect-fill, así que se deshace ese mapeo a mano.
+    private func cropToGuide(_ image: UIImage) -> UIImage {
+        guard previewFrame.width > 0, guideFrame.width > 0,
+              let normalized = PosterPhotoExtractor.normalizedUp(image),
+              let cgImage = normalized.cgImage else { return image }
+
+        let imageSize = normalized.size
+        let scale = max(previewFrame.width / imageSize.width,
+                        previewFrame.height / imageSize.height)
+        let displayed = CGSize(width: imageSize.width * scale,
+                               height: imageSize.height * scale)
+        let offsetX = (displayed.width - previewFrame.width) / 2
+        let offsetY = (displayed.height - previewFrame.height) / 2
+
+        let cropRect = CGRect(
+            x: (guideFrame.minX - previewFrame.minX + offsetX) / scale,
+            y: (guideFrame.minY - previewFrame.minY + offsetY) / scale,
+            width: guideFrame.width / scale,
+            height: guideFrame.height / scale
+        ).intersection(CGRect(origin: .zero, size: imageSize))
+
+        guard !cropRect.isEmpty, let cropped = cgImage.cropping(to: cropRect) else {
+            return image
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
+        return UIImage(cgImage: cropped)
     }
 
     /// Barra inferior mínima: galería, obturador blanco limpio, voltear.
@@ -208,7 +261,8 @@ struct PosterImportView: View {
             Button {
                 camera.capture { image in
                     guard let image else { return }
-                    withAnimation(FaroTheme.springSmooth) { capturedImage = image }
+                    let framed = cropToGuide(image)
+                    withAnimation(FaroTheme.springSmooth) { capturedImage = framed }
                 }
             } label: {
                 Circle()
@@ -264,11 +318,19 @@ struct PosterImportView: View {
 
     private func reviewView(_ image: UIImage) -> some View {
         ZStack(alignment: .bottom) {
+            // Fondo negro: la foto vive en su marco y los botones
+            // siempre quedan visibles y legibles.
+            Color.black.ignoresSafeArea()
+
             Image(uiImage: image)
                 .resizable()
-                .scaledToFill()
-                .ignoresSafeArea()
-                .overlay(.black.opacity(isProcessing ? 0.55 : 0))
+                .scaledToFit()
+                .clipShape(RoundedRectangle(cornerRadius: FaroTheme.smallCornerRadius, style: .continuous))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.horizontal, 36)
+                .padding(.top, 70)
+                .padding(.bottom, 190)
+                .opacity(isProcessing ? 0.45 : 1)
 
             VStack(spacing: 12) {
                 if isProcessing {
@@ -328,7 +390,11 @@ struct PosterImportView: View {
         do {
             let ocr = try await services.ocr.extractText(from: data)
             let extracted = PosterFieldExtractor.extract(from: ocr.fullText)
-            let caseFile = buildCase(from: extracted, ocrText: ocr.fullText, imageData: data)
+            // Si el cartel trae foto de la persona, se recorta y se usa
+            // como foto del caso (también queda pendiente de revisión).
+            let personPhoto = await PosterPhotoExtractor.extractPersonPhoto(from: image)
+            let caseFile = buildCase(from: extracted, ocrText: ocr.fullText,
+                                     imageData: data, personPhoto: personPhoto)
             try? modelContext.save()
             router.activeCase = caseFile
             router.showingCrisisFlow = false
@@ -339,7 +405,8 @@ struct PosterImportView: View {
 
     private func buildCase(from extracted: PosterExtraction,
                            ocrText: String,
-                           imageData: Data) -> CaseFile {
+                           imageData: Data,
+                           personPhoto: Data?) -> CaseFile {
         let title = extracted.name.map { "Caso · \($0)" } ?? "Nuevo caso"
         let caseFile = CaseFile(title: title)
         modelContext.insert(caseFile)
@@ -348,6 +415,7 @@ struct PosterImportView: View {
         person.approximateAge = extracted.age
         if let place = extracted.place { person.lastSeenPlace = place }
         if let clothing = extracted.clothing { person.clothingDescription = clothing }
+        person.photoData = personPhoto
         caseFile.person = person
 
         // El cartel completo entra como evidencia pendiente.
@@ -514,6 +582,73 @@ enum PosterFieldExtractor {
                       "reporte", "favor", "comparte", "años", "vez"]
         let lower = line.lowercased()
         return !banned.contains(where: { lower.contains($0) })
+    }
+}
+
+// MARK: - Foto de la persona dentro del cartel
+
+/// Detecta el rostro en la foto del cartel con Vision (en el dispositivo)
+/// y recorta un retrato alrededor. Si no hay rostro claro, no devuelve
+/// nada: nunca se adivina qué parte del cartel es la persona.
+enum PosterPhotoExtractor {
+
+    static func extractPersonPhoto(from image: UIImage) async -> Data? {
+        // Se normaliza la orientación primero para que las coordenadas
+        // de Vision y el recorte hablen del mismo espacio.
+        guard let cgImage = normalizedUp(image)?.cgImage else { return nil }
+
+        let request = VNDetectFaceRectanglesRequest()
+        let handler = VNImageRequestHandler(cgImage: cgImage)
+        let faces: [VNFaceObservation]? = await Task.detached(priority: .userInitiated) {
+            try? handler.perform([request])
+            return request.results
+        }.value
+
+        // El rostro más grande es el retrato principal del cartel.
+        guard let face = faces?.max(by: { area($0) < area($1) }) else { return nil }
+
+        return crop(cgImage: cgImage, around: face.boundingBox)
+    }
+
+    /// Redibuja la imagen con orientación .up real.
+    static func normalizedUp(_ image: UIImage) -> UIImage? {
+        if image.imageOrientation == .up { return image }
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: image.size, format: format).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: image.size))
+        }
+    }
+
+    private static func area(_ face: VNFaceObservation) -> CGFloat {
+        face.boundingBox.width * face.boundingBox.height
+    }
+
+    /// Expande el cuadro del rostro a un retrato (hombros y cabello
+    /// incluidos) y lo recorta de la imagen original.
+    private static func crop(cgImage: CGImage,
+                             around normalizedBox: CGRect) -> Data? {
+        let width = CGFloat(cgImage.width)
+        let height = CGFloat(cgImage.height)
+
+        // Vision usa origen abajo-izquierda y coordenadas normalizadas.
+        var box = CGRect(x: normalizedBox.minX * width,
+                         y: (1 - normalizedBox.maxY) * height,
+                         width: normalizedBox.width * width,
+                         height: normalizedBox.height * height)
+
+        // Margen de retrato: más espacio arriba (cabello) y abajo (hombros).
+        let expandX = box.width * 0.65
+        let expandTop = box.height * 0.85
+        let expandBottom = box.height * 1.0
+        box = CGRect(x: box.minX - expandX,
+                     y: box.minY - expandTop,
+                     width: box.width + expandX * 2,
+                     height: box.height + expandTop + expandBottom)
+            .intersection(CGRect(x: 0, y: 0, width: width, height: height))
+
+        guard !box.isEmpty, let cropped = cgImage.cropping(to: box) else { return nil }
+        return UIImage(cgImage: cropped).jpegData(compressionQuality: 0.9)
     }
 }
 

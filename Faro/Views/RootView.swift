@@ -79,6 +79,12 @@ struct RootView: View {
     /// Soporte de ensayo de demo: lanzar con "-FaroOpenDemo" abre
     /// directamente el caso demo (útil para presentaciones y pruebas).
     private func handleLaunchArguments() {
+        if ProcessInfo.processInfo.arguments.contains("-FaroOpenIntake") {
+            router.intakeMode = .conversational
+            router.showingCrisisFlow = true
+            return
+        }
+
         guard ProcessInfo.processInfo.arguments.contains("-FaroOpenDemo") else { return }
         let descriptor = FetchDescriptor<CaseFile>(predicate: #Predicate { $0.isDemo })
         if let demo = (try? modelContext.fetch(descriptor))?.first {

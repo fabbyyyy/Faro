@@ -84,26 +84,148 @@ struct QuickReplyChip: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                if let systemImage {
-                    Image(systemName: systemImage)
-                        .font(.footnote)
+        if #available(iOS 26, *) {
+            if prominent {
+                Button(action: action) {
+                    glassLabel
                 }
-                Text(title)
-                    .font(.subheadline.weight(.medium))
+                .buttonStyle(.glassProminent)
+                .tint(FaroTheme.night)
+                .foregroundStyle(Color(light: .white, dark: Color(red: 0.07, green: 0.09, blue: 0.13)))
+            } else {
+                Button(action: action) {
+                    glassLabel
+                }
+                .buttonStyle(.glass)
+                .foregroundStyle(FaroTheme.night)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
-            .frame(minHeight: 44) // Objetivo táctil accesible (mínimo 44 pt).
-            .background(prominent ? AnyShapeStyle(FaroTheme.night) : AnyShapeStyle(FaroTheme.night.opacity(0.08)))
-            .foregroundStyle(prominent
-                             ? Color(light: .white, dark: Color(red: 0.07, green: 0.09, blue: 0.13))
-                             : FaroTheme.night)
-            .clipShape(Capsule())
-            .contentShape(Capsule())
+        } else {
+            Button(action: action) {
+                label
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .frame(minHeight: 44) // Objetivo táctil accesible (mínimo 44 pt).
+                    .background(prominent ? AnyShapeStyle(FaroTheme.night) : AnyShapeStyle(FaroTheme.night.opacity(0.08)))
+                    .foregroundStyle(prominent
+                                     ? Color(light: .white, dark: Color(red: 0.07, green: 0.09, blue: 0.13))
+                                     : FaroTheme.night)
+                    .clipShape(Capsule())
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
+    }
+
+    private var glassLabel: some View {
+        label
+            .font(.subheadline.weight(.medium))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .frame(minHeight: 36)
+            .contentShape(Capsule())
+    }
+
+    private var label: some View {
+        HStack(spacing: 6) {
+            if let systemImage {
+                Image(systemName: systemImage)
+                    .font(.caption)
+            }
+            Text(title)
+                .font(.subheadline.weight(.medium))
+        }
+    }
+}
+
+// MARK: - Liquid Glass helpers
+
+extension View {
+    @ViewBuilder
+    func faroGlassInputField() -> some View {
+        if #available(iOS 26, *) {
+            self
+                .glassEffect(.regular.interactive(), in: .rect(cornerRadius: FaroTheme.cornerRadius))
+        } else {
+            self
+                .background(FaroTheme.surface)
+                .clipShape(RoundedRectangle(cornerRadius: FaroTheme.cornerRadius, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: FaroTheme.cornerRadius, style: .continuous)
+                        .strokeBorder(FaroTheme.night.opacity(0.15), lineWidth: 1)
+                )
+        }
+    }
+
+    @ViewBuilder
+    func faroGlassComposerPill() -> some View {
+        if #available(iOS 26, *) {
+            self
+                .glassEffect(.regular.interactive(), in: .capsule)
+        } else {
+            self
+                .background(FaroTheme.surface)
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule()
+                        .strokeBorder(FaroTheme.night.opacity(0.15), lineWidth: 1)
+                )
+        }
+    }
+
+    @ViewBuilder
+    func faroGlassInputBarBackground() -> some View {
+        if #available(iOS 26, *) {
+            self
+                .background(.clear)
+        } else {
+            self
+                .background(FaroTheme.background)
+        }
+    }
+
+    @ViewBuilder
+    func faroGlassPhotoButton() -> some View {
+        if #available(iOS 26, *) {
+            self
+                .glassEffect(.regular.interactive(), in: .circle)
+        } else {
+            self
+                .background(FaroTheme.surface)
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .strokeBorder(FaroTheme.night.opacity(0.15), lineWidth: 1)
+                )
+        }
+    }
+
+    @ViewBuilder
+    func faroGlassProgressOrb() -> some View {
+        if #available(iOS 26, *) {
+            self
+                .glassEffect(.regular.interactive(), in: .circle)
+        } else {
+            self
+                .background(FaroTheme.surface)
+                .clipShape(Circle())
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+        }
+    }
+
+    @ViewBuilder
+    func faroGlassBeaconPill() -> some View {
+        if #available(iOS 26, *) {
+            self
+                .glassEffect(.regular.interactive(), in: .capsule)
+        } else {
+            self
+                .background(FaroTheme.surface)
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule()
+                        .strokeBorder(FaroTheme.night.opacity(0.15), lineWidth: 1)
+                )
+        }
     }
 }
 

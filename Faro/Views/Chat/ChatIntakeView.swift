@@ -28,6 +28,7 @@ struct ChatIntakeView: View {
     @State private var showingDraftFicha = false
     @State private var showingReview = false
     @State private var selectedPersonPhoto: PhotosPickerItem?
+    @FocusState private var inputFocused: Bool
 
     var body: some View {
         Group {
@@ -102,7 +103,7 @@ struct ChatIntakeView: View {
             }
         }
         .background(FaroTheme.background)
-        .navigationTitle("Asistente del caso")
+        .navigationTitle("Beacon")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { toolbarContent(viewModel) }
         .sheet(isPresented: $showingPendingPanel) {
@@ -142,9 +143,7 @@ struct ChatIntakeView: View {
     // MARK: - Columna de chat
 
     private func chatColumn(_ viewModel: ChatIntakeViewModel) -> some View {
-        VStack(spacing: 0) {
-            progressBar(viewModel)
-
+        ZStack {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 12) {
@@ -157,6 +156,8 @@ struct ChatIntakeView: View {
                         }
                     }
                     .padding(FaroTheme.screenPadding)
+                    .padding(.top, embedded ? 0 : 58)
+                    .padding(.bottom, 130)
                 }
                 .onChange(of: viewModel.messages.count) {
                     if let last = viewModel.messages.last {
@@ -172,9 +173,91 @@ struct ChatIntakeView: View {
                 }
             }
 
-            quickRepliesBar(viewModel)
-            inputBar(viewModel)
+            VStack(spacing: 0) {
+                // En el intake inicial (pantalla completa, sin barra de
+                // navegación) Beacon y el progreso flotan sobre el chat.
+                // Abierto desde el resumen, viven en la barra y aquí no.
+                if !embedded {
+                    HStack(alignment: .top) {
+                        beaconMenu(viewModel, glass: true)
+                        Spacer()
+                        progressOrb(viewModel, glass: true)
+                    }
+                    .padding(.horizontal, FaroTheme.screenPadding)
+                    .padding(.top, 8)
+                }
+
+                Spacer()
+
+                VStack(spacing: 6) {
+                    quickRepliesBar(viewModel)
+                    inputBar(viewModel)
+                }
+                .padding(.bottom, 4)
+            }
         }
+    }
+
+    @ViewBuilder
+    private func beaconMenu(_ viewModel: ChatIntakeViewModel, glass: Bool = false) -> some View {
+        let menu = Menu {
+            Button("Ficha en construcción", systemImage: "doc.text.magnifyingglass") {
+                showingDraftFicha = true
+            }
+            Button("Reiniciar caso", systemImage: "arrow.counterclockwise") {
+                resetIntake(viewModel)
+            }
+            Button("Salir al menú principal", systemImage: "house") {
+                exitToMainMenu(viewModel)
+            }
+        } label: {
+            if glass {
+                Text("Beacon")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(FaroTheme.night)
+                    .padding(.horizontal, 16)
+                    .frame(height: 44)
+                    .contentShape(Capsule())
+            } else {
+                Text("Beacon")
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .contentShape(Rectangle())
+            }
+        }
+        .accessibilityLabel("Beacon")
+        .accessibilityHint("Abre la ficha en construcción y opciones del caso")
+
+        if glass {
+            menu.faroGlassBeaconPill()
+        } else {
+            menu
+        }
+    }
+
+    private func resetIntake(_ viewModel: ChatIntakeViewModel) {
+        let oldCase = viewModel.caseFile
+        modelContext.delete(oldCase)
+        do {
+            try modelContext.save()
+            inputText = ""
+            selectedPersonPhoto = nil
+            showingPendingPanel = false
+            showingDraftFicha = false
+            showingReview = false
+            let fresh = ChatIntakeViewModel(caseFile: nil, context: modelContext)
+            self.viewModel = fresh
+            fresh.start()
+        } catch {
+            viewModel.saveErrorMessage = "No pudimos reiniciar el caso. Intenta de nuevo antes de cerrar."
+        }
+    }
+
+    private func exitToMainMenu(_ viewModel: ChatIntakeViewModel) {
+        viewModel.persist()
+        router.activeCase = nil
+        router.showingCrisisFlow = false
+        dismiss()
     }
 
     @ViewBuilder
@@ -197,30 +280,43 @@ struct ChatIntakeView: View {
 
     // MARK: - Progreso suave
 
-    private func progressBar(_ viewModel: ChatIntakeViewModel) -> some View {
+    @ViewBuilder
+    private func progressOrb(_ viewModel: ChatIntakeViewModel, glass: Bool = false) -> some View {
         let total = IntakeQuestionBank.all.count
         let done = viewModel.answeredCount
-        return VStack(spacing: 4) {
-            ProgressView(value: Double(done), total: Double(total))
-                .tint(FaroTheme.amber)
-            HStack(spacing: 8) {
-                Text("\(done) de \(total) datos")
-                    .font(.caption2)
-                    .foregroundStyle(FaroTheme.secondaryText)
-                if viewModel.openQuestions.count > 0 && viewModel.answeredCount > 0 {
-                    Text("· \(viewModel.openQuestions.count) pendientes")
-                        .font(.caption2)
-                        .foregroundStyle(FaroTheme.amber)
-                }
-                Spacer()
-                saveStatusView(viewModel)
+        let progress = total == 0 ? 0 : Double(done) / Double(total)
+        let button = Button {
+            showingPendingPanel = true
+        } label: {
+            ZStack {
+                Circle()
+                    .stroke(FaroTheme.secondaryText.opacity(0.24), lineWidth: 4)
+                    .frame(width: 28, height: 28)
+                Circle()
+                    .trim(from: 0, to: progress)
+                    .stroke(progress >= 1 ? FaroTheme.confirmedGreen : FaroTheme.amber,
+                            style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .frame(width: 28, height: 28)
+                    .rotationEffect(.degrees(-90))
+                    .animation(.easeInOut(duration: 0.25), value: progress)
+                Text("\(done)")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(FaroTheme.night)
+                    .monospacedDigit()
             }
-            .animation(.easeInOut(duration: 0.2), value: viewModel.saveStatus)
+            .frame(width: glass ? 48 : 40, height: glass ? 48 : 40)
+            .contentShape(Circle())
         }
-        .padding(.horizontal, FaroTheme.screenPadding)
-        .padding(.top, 8)
+        .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Progreso: \(done) de \(total) datos reunidos. Puedes saltar cualquier pregunta.")
+        .accessibilityLabel("Progreso: \(done) de \(total) datos reunidos")
+        .accessibilityHint("Abre la lista de datos pendientes")
+
+        if glass {
+            button.faroGlassProgressOrb()
+        } else {
+            button
+        }
     }
 
     /// Indicador discreto de autosave: confirma que nada se pierde.
@@ -257,103 +353,96 @@ struct ChatIntakeView: View {
     @ViewBuilder
     private func quickRepliesBar(_ viewModel: ChatIntakeViewModel) -> some View {
         if viewModel.awaitingConfirmation == nil && !viewModel.isProcessing {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    if viewModel.activeQuestion != nil {
-                        QuickReplyChip(title: "No lo sé", action: { viewModel.send("No lo sé") })
-                        QuickReplyChip(title: "Saltar por ahora", action: { viewModel.send("saltar") })
-                    }
-                    if viewModel.baseFlowFinished {
-                        QuickReplyChip(title: "Revisar y generar ficha",
-                                       systemImage: "doc.text",
-                                       prominent: true,
-                                       action: { showingReview = true })
-                    }
-                    if !viewModel.openQuestions.isEmpty {
-                        QuickReplyChip(title: "Ver pendientes (\(viewModel.openQuestions.count))",
-                                       systemImage: "tray",
-                                       action: { showingPendingPanel = true })
-                    }
+            HStack(spacing: 8) {
+                if viewModel.activeQuestion != nil {
+                    QuickReplyChip(title: "No lo sé", action: { viewModel.send("No lo sé") })
+                    QuickReplyChip(title: "Saltar por ahora", action: { viewModel.send("saltar") })
                 }
-                .padding(.horizontal, FaroTheme.screenPadding)
-                .padding(.vertical, 6)
+                if viewModel.baseFlowFinished {
+                    QuickReplyChip(title: "Revisar y generar ficha",
+                                   systemImage: "doc.text",
+                                   prominent: true,
+                                   action: { showingReview = true })
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, FaroTheme.screenPadding)
+            .padding(.vertical, 2)
+            .background(Color.clear)
         }
     }
 
     // MARK: - Barra de entrada
 
+    @ViewBuilder
     private func inputBar(_ viewModel: ChatIntakeViewModel) -> some View {
+        if #available(iOS 26, *) {
+            GlassEffectContainer(spacing: 8) {
+                inputBarContent(viewModel)
+            }
+            .inputBarShell(selectedPersonPhoto: $selectedPersonPhoto, viewModel: viewModel)
+        } else {
+            inputBarContent(viewModel)
+                .inputBarShell(selectedPersonPhoto: $selectedPersonPhoto, viewModel: viewModel)
+        }
+    }
+
+    private func inputBarContent(_ viewModel: ChatIntakeViewModel) -> some View {
         HStack(spacing: 8) {
-            // Foto de la persona — acceso rápido desde el chat.
             PhotosPicker(selection: $selectedPersonPhoto, matching: .images) {
-                ZStack {
-                    if let data = viewModel.caseFile.person?.photoData,
-                       let image = UIImage(data: data) {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 36, height: 36)
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    } else {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(FaroTheme.secondaryText.opacity(0.10))
-                            .frame(width: 36, height: 36)
-                            .overlay(
-                                Image(systemName: "camera")
-                                    .font(.system(size: 14))
-                                    .foregroundStyle(FaroTheme.secondaryText)
-                            )
-                    }
-                }
-                .frame(width: 44, height: 44) // Objetivo táctil accesible.
-                .contentShape(Rectangle())
+                Image(systemName: "plus")
+                    .font(.system(size: 21, weight: .medium))
+                    .foregroundStyle(FaroTheme.night)
+                    .frame(width: 48, height: 48)
+                    .contentShape(Circle())
+                .faroGlassPhotoButton()
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(viewModel.caseFile.person?.photoData != nil ? "Cambiar foto de la persona" : "Agregar foto de la persona")
+            .accessibilityLabel("Subir imagen")
 
-            TextField("Escribe con tus palabras…", text: $inputText, axis: .vertical)
-                .font(.body)
-                .lineLimit(1...4)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(FaroTheme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: FaroTheme.cornerRadius, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: FaroTheme.cornerRadius, style: .continuous)
-                        .strokeBorder(FaroTheme.night.opacity(0.15), lineWidth: 1)
-                )
-                .onSubmit { submit(viewModel) }
-                .accessibilityLabel("Campo de respuesta. Escribe con tus palabras, no necesita ser perfecto.")
+            HStack(spacing: 6) {
+                TextField("Escribe lo que ocupas…", text: $inputText, axis: .vertical)
+                    .font(.body)
+                    .lineLimit(1...3)
+                    .focused($inputFocused)
+                    .onSubmit { submit(viewModel) }
+                    .accessibilityLabel("Campo de respuesta. Escribe con tus palabras, no necesita ser perfecto.")
 
-            Button {
-                submit(viewModel)
-            } label: {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 32))
-                    .foregroundStyle(inputText.isEmpty ? FaroTheme.secondaryText.opacity(0.4) : FaroTheme.night)
-                    .frame(width: 44, height: 44) // Objetivo táctil accesible.
-                    .contentShape(Rectangle())
+                Button {
+                    inputFocused = true
+                } label: {
+                    Image(systemName: "mic")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(FaroTheme.secondaryText)
+                        .frame(width: 34, height: 34)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Dictar")
+
+                Button {
+                    submit(viewModel)
+                } label: {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(inputText.isEmpty ? FaroTheme.secondaryText.opacity(0.55) : Color(light: .white, dark: Color(red: 0.07, green: 0.09, blue: 0.13)))
+                        .frame(width: 38, height: 38)
+                        .background(inputText.isEmpty ? FaroTheme.secondaryText.opacity(0.16) : FaroTheme.night)
+                        .clipShape(Circle())
+                        .contentShape(Circle())
+                }
+                .disabled(inputText.isEmpty || viewModel.isProcessing)
+                .accessibilityLabel("Enviar respuesta")
             }
-            .disabled(inputText.isEmpty || viewModel.isProcessing)
-            .accessibilityLabel("Enviar respuesta")
+            .padding(.leading, 16)
+            .padding(.trailing, 6)
+            .padding(.vertical, 6)
+            .frame(minHeight: 48)
+            .faroGlassComposerPill()
         }
         .padding(.horizontal, FaroTheme.screenPadding)
         .padding(.vertical, 10)
-        .background(FaroTheme.background)
-        .onChange(of: selectedPersonPhoto) { _, item in
-            Task {
-                if let data = try? await item?.loadTransferable(type: Data.self) {
-                    await MainActor.run {
-                        if viewModel.caseFile.person == nil {
-                            viewModel.caseFile.person = MissingPerson()
-                        }
-                        viewModel.caseFile.person?.photoData = data
-                        viewModel.persist()
-                    }
-                }
-            }
-        }
+        .faroGlassInputBarBackground()
     }
 
     private func submit(_ viewModel: ChatIntakeViewModel) {
@@ -378,14 +467,14 @@ struct ChatIntakeView: View {
                 .accessibilityHint("Tu progreso queda guardado como borrador")
             }
         }
-        if sizeClass != .regular || embedded {
+        // Abierto desde el resumen del caso: Beacon y el progreso viven
+        // en la barra. En el intake inicial flotan sobre el chat.
+        if embedded {
+            ToolbarItem(placement: .principal) {
+                beaconMenu(viewModel)
+            }
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showingDraftFicha = true
-                } label: {
-                    Label("Ficha en construcción", systemImage: "doc.text.magnifyingglass")
-                }
-                .accessibilityHint("Muestra qué datos ya están listos y cuáles faltan")
+                progressOrb(viewModel)
             }
         }
     }
@@ -405,5 +494,27 @@ struct DraftFichaLiveColumn: View {
             DraftFichaView(caseFile: caseFile, compact: true)
         }
         .background(FaroTheme.background)
+    }
+}
+
+private extension View {
+    func inputBarShell(
+        selectedPersonPhoto: Binding<PhotosPickerItem?>,
+        viewModel: ChatIntakeViewModel
+    ) -> some View {
+        self
+            .onChange(of: selectedPersonPhoto.wrappedValue) { _, item in
+                Task {
+                    if let data = try? await item?.loadTransferable(type: Data.self) {
+                        await MainActor.run {
+                            if viewModel.caseFile.person == nil {
+                                viewModel.caseFile.person = MissingPerson()
+                            }
+                            viewModel.caseFile.person?.photoData = data
+                            viewModel.persist()
+                        }
+                    }
+                }
+            }
     }
 }

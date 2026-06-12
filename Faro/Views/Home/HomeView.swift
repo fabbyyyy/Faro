@@ -30,7 +30,24 @@ struct HomeView: View {
         }
         .frame(maxWidth: 520)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(FaroTheme.background)
+        .background {
+            ZStack {
+                FaroTheme.background
+                // Velo que nace en la esquina superior derecha y se
+                // desvanece hacia abajo: azul noche en claro, crema en oscuro.
+                RadialGradient(
+                    colors: [
+                        Color(light: Color(red: 0.10, green: 0.16, blue: 0.28).opacity(0.38),
+                              dark: Color(red: 0.97, green: 0.94, blue: 0.88).opacity(0.34)),
+                        .clear
+                    ],
+                    center: .topTrailing,
+                    startRadius: 0,
+                    endRadius: 620
+                )
+            }
+            .ignoresSafeArea()
+        }
         .onAppear {
             withAnimation { appeared = true }
         }
@@ -49,21 +66,14 @@ struct HomeView: View {
 
     private var heroSection: some View {
         VStack(spacing: 0) {
-            ZStack {
-                Circle()
-                    .fill(FaroTheme.amber.opacity(0.10))
-                    .frame(width: 100, height: 100)
-                    .blur(radius: 18)
-                    .faroEntrance(visible: appeared, delay: 0.0)
-
-                Image(systemName: "light.beacon.max")
-                    .font(.system(size: 52, weight: .light))
-                    .foregroundStyle(FaroTheme.amber)
-                    .faroEntrance(visible: appeared, delay: 0.04)
-            }
-            .frame(width: 100, height: 90)
-            .accessibilityHidden(true)
-            .padding(.bottom, 16)
+            Image("faro")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 90, height: 90)
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .faroEntrance(visible: appeared, delay: 0.0)
+                .accessibilityHidden(true)
+                .padding(.bottom, 16)
 
             Text("FARO")
                 .font(.system(size: 42, weight: .semibold, design: .rounded))
@@ -88,7 +98,7 @@ struct HomeView: View {
             } label: {
                 Label("Crear caso", systemImage: "plus.circle")
             }
-            .buttonStyle(FaroPrimaryButtonStyle())
+            .buttonStyle(HomeGlassActionButtonStyle(prominent: true))
             .accessibilityHint("Inicia el registro guiado de un nuevo caso")
             .faroEntrance(visible: appeared, delay: 0.18)
 
@@ -97,7 +107,7 @@ struct HomeView: View {
             } label: {
                 Label("Abrir caso demo", systemImage: "sparkles.rectangle.stack")
             }
-            .buttonStyle(FaroSecondaryButtonStyle())
+            .buttonStyle(HomeGlassActionButtonStyle())
             .accessibilityHint("Abre un expediente de ejemplo con datos ficticios")
             .faroEntrance(visible: appeared, delay: 0.22)
 
@@ -107,7 +117,7 @@ struct HomeView: View {
                 } label: {
                     Label("Continuar caso", systemImage: "arrow.right.circle")
                 }
-                .buttonStyle(FaroSecondaryButtonStyle())
+                .buttonStyle(HomeGlassActionButtonStyle())
                 .accessibilityHint("Continúa con \(latest.title)")
                 .faroEntrance(visible: appeared, delay: 0.26)
             }
@@ -174,21 +184,21 @@ struct EthicsNoticeView: View {
             Button { onContinue(.conversational) } label: {
                 Label("Conversar con el asistente", systemImage: "bubble.left.and.text.bubble.right")
             }
-            .buttonStyle(FaroPrimaryButtonStyle())
+            .buttonStyle(HomeGlassActionButtonStyle(prominent: true))
             .accessibilityHint("Respondes con tus palabras y el asistente organiza la información")
             .faroEntrance(visible: appeared, delay: 0.33)
 
             Button { onContinue(.guided) } label: {
                 Label("Ir paso a paso", systemImage: "list.number")
             }
-            .buttonStyle(FaroSecondaryButtonStyle())
+            .buttonStyle(HomeGlassActionButtonStyle())
             .accessibilityHint("Una pregunta corta a la vez, más sencillo bajo estrés")
             .faroEntrance(visible: appeared, delay: 0.36)
 
             Button { onContinue(.posterImport) } label: {
                 Label("Tengo un cartel o ficha", systemImage: "text.viewfinder")
             }
-            .buttonStyle(FaroSecondaryButtonStyle())
+            .buttonStyle(HomeGlassActionButtonStyle())
             .accessibilityHint("Fotografía un cartel de búsqueda y FARO extrae los datos para que los revises")
             .faroEntrance(visible: appeared, delay: 0.39)
 
@@ -218,5 +228,38 @@ struct EthicsNoticeView: View {
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+}
+
+private struct HomeGlassActionButtonStyle: ButtonStyle {
+    var prominent = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        if #available(iOS 26, *) {
+            configuration.label
+                .font(.headline)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .padding(.horizontal, 20)
+                .foregroundStyle(foregroundStyle)
+                .glassEffect(glassEffect.interactive(), in: .capsule)
+                .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+                .animation(FaroTheme.springSnappy, value: configuration.isPressed)
+        } else if prominent {
+            FaroPrimaryButtonStyle().makeBody(configuration: configuration)
+        } else {
+            FaroSecondaryButtonStyle().makeBody(configuration: configuration)
+        }
+    }
+
+    private var foregroundStyle: Color {
+        prominent
+            ? Color(light: .white, dark: Color(red: 0.043, green: 0.075, blue: 0.122))
+            : FaroTheme.night
+    }
+
+    @available(iOS 26, *)
+    private var glassEffect: Glass {
+        prominent ? .regular.tint(FaroTheme.night) : .regular
     }
 }

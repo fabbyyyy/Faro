@@ -114,8 +114,8 @@ struct CaseDashboardView: View {
         if pending > 0 {
             return NextStep(
                 section: .validation,
-                title: "Revisar \(pending) dato\(pending == 1 ? "" : "s") pendiente\(pending == 1 ? "" : "s")",
-                detail: "Confirma o corrige lo que se sugirió antes de usarlo.",
+                title: "Revisa los pendientes con Beacon",
+                detail: "\(pending) dato\(pending == 1 ? "" : "s") sugerido\(pending == 1 ? "" : "s") espera\(pending == 1 ? "" : "n") tu confirmación.",
                 symbol: "checkmark.seal"
             )
         }
@@ -149,17 +149,12 @@ struct CaseDashboardView: View {
     @ViewBuilder
     private func nextStepCard(_ step: NextStep) -> some View {
         let card = HStack(spacing: 14) {
-            Image(systemName: step.symbol)
-                .font(.system(size: 22, weight: .medium))
-                .foregroundStyle(FaroTheme.night)
-                .frame(width: 46, height: 46)
-                .background(FaroTheme.night.opacity(0.10))
-                .clipShape(RoundedRectangle(cornerRadius: FaroTheme.smallCornerRadius, style: .continuous))
+            Image("BeaconHi")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 58, height: 58)
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Siguiente paso")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(FaroTheme.amber)
+            VStack(alignment: .leading, spacing: 4) {
                 Text(step.title)
                     .font(.headline)
                     .foregroundStyle(.primary)
@@ -175,11 +170,18 @@ struct CaseDashboardView: View {
                 .accessibilityHidden(true)
         }
         .padding(FaroTheme.cardPadding)
+        .background(
+            LinearGradient(
+                colors: [FaroTheme.amber.opacity(0.10), FaroTheme.surface],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
         .background(FaroTheme.surface)
         .clipShape(RoundedRectangle(cornerRadius: FaroTheme.cornerRadius, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: FaroTheme.cornerRadius, style: .continuous)
-                .strokeBorder(FaroTheme.amber.opacity(0.30), lineWidth: 1)
+                .strokeBorder(FaroTheme.amber.opacity(0.25), lineWidth: 1)
         )
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
@@ -224,7 +226,6 @@ struct CaseDashboardView: View {
             }
             Spacer()
         }
-        .faroCard()
         .accessibilityElement(children: .combine)
     }
 
