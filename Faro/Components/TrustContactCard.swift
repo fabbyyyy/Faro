@@ -12,7 +12,7 @@ struct TrustContactCard: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
-            Image(systemName: contact.role.symbolName)
+            Image(systemName: contact.symbolName)
                 .font(.system(size: 20)) // Tamaño fijo: el ícono decorativo no debe desbordar su recuadro con texto grande.
                 .foregroundStyle(FaroTheme.night)
                 .frame(width: 40, height: 40)
@@ -35,9 +35,6 @@ struct TrustContactCard: View {
                     .background(FaroTheme.night.opacity(0.08))
                     .foregroundStyle(FaroTheme.night)
                     .clipShape(Capsule())
-                Text(contact.role.permissionsSummary)
-                    .font(.caption)
-                    .foregroundStyle(FaroTheme.secondaryText)
                 if !contact.phone.isEmpty {
                     Text(contact.phone)
                         .font(.caption.monospacedDigit())

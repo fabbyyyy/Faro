@@ -40,7 +40,7 @@ struct EvidenceCard: View {
                     .lineLimit(3)
             }
 
-            HStack(spacing: 8) {
+            FlowLayout(spacing: 8, lineSpacing: 8) {
                 SensitivityBadge(level: evidence.sensitivity)
                 ValidationBadge(state: evidence.validationState)
                 ConfidenceBadge(level: evidence.kind.sourceConfidence)

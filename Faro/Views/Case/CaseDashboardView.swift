@@ -115,15 +115,23 @@ struct CaseDashboardView: View {
         let symbol: String
     }
 
+    /// Preguntas del intake aún abiertas — el mismo conteo que la
+    /// sección "Pendientes" del panel de datos del caso.
+    private var openIntakeCount: Int {
+        IntakeQuestionBank.sortedByPriority.filter { question in
+            caseFile.questionStates.first(where: { $0.questionKey == question.key })?.status.isOpen == true
+        }.count
+    }
+
     /// La acción más importante según el estado del caso. Prioridad:
     /// revisar pendientes → completar datos → ficha pública → reporte.
     private var nextStep: NextStep? {
-        let pending = caseFile.pendingReviewCount
+        let pending = openIntakeCount
         if pending > 0 {
             return NextStep(
                 section: .chat,
                 title: "Revisa los pendientes con Beacon",
-                detail: "\(pending) dato\(pending == 1 ? "" : "s") sugerido\(pending == 1 ? "" : "s") espera\(pending == 1 ? "" : "n") tu confirmación.",
+                detail: "\(pending) dato\(pending == 1 ? "" : "s") pendiente\(pending == 1 ? "" : "s") por completar.",
                 symbol: "checkmark.seal"
             )
         }

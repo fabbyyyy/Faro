@@ -13,12 +13,25 @@ struct TimelineEventCard: View {
     /// Verdadero cuando este evento participa en una contradicción de horario.
     var isConflicting: Bool = false
 
+    private var formattedTime: String {
+        event.date.formatted(.dateTime.hour(.defaultDigits(amPM: .omitted)).minute())
+    }
+
+    private var amPMLabel: String {
+        Calendar.current.component(.hour, from: event.date) < 12 ? "a.m." : "p.m."
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
             // Columna de hora
             VStack(spacing: 2) {
-                Text(event.date, format: .dateTime.hour().minute())
+                Text(formattedTime)
                     .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .lineLimit(1)
+                    .fixedSize()
+                Text(amPMLabel)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(FaroTheme.secondaryText)
                 Text(event.date, format: .dateTime.day().month(.abbreviated))
                     .font(.caption2)
                     .foregroundStyle(FaroTheme.secondaryText)
@@ -45,7 +58,7 @@ struct TimelineEventCard: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                HStack(spacing: 8) {
+                FlowLayout(spacing: 8, lineSpacing: 8) {
                     ValidationBadge(state: event.validationState)
                     ConfidenceBadge(level: event.confidence)
                 }

@@ -35,6 +35,11 @@ final class AppRouter {
 struct RootView: View {
     @State private var router = AppRouter()
     @Environment(\.modelContext) private var modelContext
+    /// Bienvenida de primer arranque: se muestra una sola vez por instalación.
+    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
+    /// El caso de ejemplo se siembra una vez por instalación; si la familia
+    /// lo elimina después, no se vuelve a crear.
+    @AppStorage("demoCaseSeeded") private var demoCaseSeeded = false
 
     /// El cover del sistema desliza desde abajo; la importación de cartel
     /// trae su propia animación (pill → pantalla completa), así que se
@@ -75,8 +80,29 @@ struct RootView: View {
             }
             .environment(router)
         }
+        .sheet(isPresented: Binding(
+            get: { !hasSeenOnboarding },
+            set: { if !$0 { hasSeenOnboarding = true } }
+        )) {
+            OnboardingView { hasSeenOnboarding = true }
+                .interactiveDismissDisabled()
+        }
         .tint(FaroTheme.night)
-        .onAppear { handleLaunchArguments() }
+        .onAppear {
+            seedDemoCaseIfNeeded()
+            handleLaunchArguments()
+        }
+    }
+
+    /// Crea el caso de ejemplo en instalaciones nuevas, para que la app
+    /// nunca arranque vacía. Solo una vez: si se elimina, se respeta.
+    private func seedDemoCaseIfNeeded() {
+        guard !demoCaseSeeded else { return }
+        demoCaseSeeded = true
+        let descriptor = FetchDescriptor<CaseFile>(predicate: #Predicate { $0.isDemo })
+        guard ((try? modelContext.fetch(descriptor))?.isEmpty ?? true) else { return }
+        _ = DemoCaseFactory.makeDemoCase(in: modelContext)
+        try? modelContext.save()
     }
 
     /// Soporte de ensayo de demo: lanzar con "-FaroOpenDemo" abre

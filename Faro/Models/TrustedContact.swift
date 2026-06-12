@@ -30,4 +30,30 @@ final class TrustedContact {
         self.phone = phone
         self.role = role
     }
+
+    /// Símbolo según el parentesco escrito; si no se reconoce, usa el del rol.
+    var symbolName: String {
+        let text = relationship
+            .folding(options: .diacriticInsensitive, locale: Locale(identifier: "es_MX"))
+            .lowercased()
+
+        let matches: [(keywords: [String], symbol: String)] = [
+            (["mama", "madre", "papa", "padre"], "figure.and.child.holdinghands"),
+            (["hermana", "hermano"], "person.2"),
+            (["hija", "hijo"], "figure.child"),
+            (["abuela", "abuelo"], "figure.walk"),
+            (["tia", "tio", "prima", "primo", "sobrina", "sobrino"], "person.3"),
+            (["esposa", "esposo", "pareja", "novia", "novio"], "heart"),
+            (["amiga", "amigo"], "hand.wave"),
+            (["vecina", "vecino"], "house"),
+            (["abogada", "abogado", "licenciada", "licenciado", "legal"], "briefcase"),
+            (["maestra", "maestro", "profesora", "profesor", "escuela"], "graduationcap"),
+            (["companera", "companero", "trabajo", "colega"], "person.crop.rectangle"),
+        ]
+
+        for entry in matches where entry.keywords.contains(where: { text.contains($0) }) {
+            return entry.symbol
+        }
+        return role.symbolName
+    }
 }

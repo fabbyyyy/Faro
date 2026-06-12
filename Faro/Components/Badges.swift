@@ -15,6 +15,8 @@ struct SensitivityBadge: View {
     var body: some View {
         Label(level.displayName, systemImage: level.symbolName)
             .font(.caption.weight(.medium))
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
             .background(FaroTheme.color(for: level).opacity(0.14))
@@ -31,6 +33,8 @@ struct ValidationBadge: View {
     var body: some View {
         Label(state.displayName, systemImage: state.symbolName)
             .font(.caption.weight(.medium))
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
             .background(FaroTheme.color(for: state).opacity(0.14))
@@ -45,6 +49,8 @@ struct AISuggestionBadge: View {
     var body: some View {
         Label("Sugerido por IA · requiere revisión", systemImage: "sparkles")
             .font(.caption.weight(.medium))
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
             .background(FaroTheme.amber.opacity(0.14))
@@ -61,6 +67,8 @@ struct ConfidenceBadge: View {
     var body: some View {
         Text(level.displayName)
             .font(.caption)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(FaroTheme.secondaryText.opacity(0.12))

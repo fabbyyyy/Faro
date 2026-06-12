@@ -37,7 +37,7 @@ struct CaseMapView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        Group {
             if activeLocations.isEmpty {
                 EmptyStateView(
                     symbolName: "map",
@@ -52,13 +52,14 @@ struct CaseMapView: View {
                                systemImage: location.kind.symbolName,
                                coordinate: CLLocationCoordinate2D(latitude: location.latitude,
                                                                   longitude: location.longitude))
-                        .tint(markerColor(for: location))
+                        .tint(location.markerColor)
                         .tag(location)
                     }
                 }
-                .frame(minHeight: 280)
-
-                locationList
+                .ignoresSafeArea(edges: .bottom)
+                .safeAreaInset(edge: .bottom) {
+                    privacyNote
+                }
             }
         }
         .background(FaroTheme.background)
@@ -66,54 +67,35 @@ struct CaseMapView: View {
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $selectedLocation) { location in
             LocationDetailView(location: location, caseFile: caseFile)
-                .presentationDetents([.medium])
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
     }
 
-    private func markerColor(for location: LocationRecord) -> Color {
-        switch location.kind {
+    private var privacyNote: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "lock.shield")
+                .foregroundStyle(FaroTheme.night)
+                .accessibilityHidden(true)
+            Text("Mapa privado del expediente. La ficha pública solo menciona zonas generales.")
+                .font(.caption)
+                .foregroundStyle(FaroTheme.secondaryText)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial, in: Capsule())
+        .padding(.horizontal, FaroTheme.screenPadding)
+        .padding(.bottom, 8)
+    }
+}
+
+private extension LocationRecord {
+    var markerColor: Color {
+        switch kind {
         case .lastKnown:      return FaroTheme.amber
         case .frequent:       return FaroTheme.night
         case .mentioned:      return FaroTheme.secondaryText
         case .discardedPlace: return FaroTheme.secondaryText.opacity(0.5)
-        }
-    }
-
-    private var locationList: some View {
-        ScrollView {
-            VStack(spacing: 10) {
-                Text("Este mapa es privado del expediente. Si generas una ficha pública, las ubicaciones precisas se convierten en zonas generales.")
-                    .font(.footnote)
-                    .foregroundStyle(FaroTheme.secondaryText)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.bottom, 2)
-
-                ForEach(activeLocations) { location in
-                    Button {
-                        selectedLocation = location
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: location.kind.symbolName)
-                                .foregroundStyle(markerColor(for: location))
-                                .frame(width: 28)
-                                .accessibilityHidden(true)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(location.name)
-                                    .font(.subheadline.weight(.medium))
-                                    .foregroundStyle(.primary)
-                                Text("\(location.kind.displayName) · \(location.precision.displayName)")
-                                    .font(.caption)
-                                    .foregroundStyle(FaroTheme.secondaryText)
-                            }
-                            Spacer()
-                            ValidationBadge(state: location.validationState)
-                        }
-                        .faroCard()
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(FaroTheme.screenPadding)
         }
     }
 }
@@ -126,41 +108,22 @@ struct LocationDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
+    @State private var lookAroundScene: MKLookAroundScene?
+    @State private var lookAroundChecked = false
+
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Lugar") {
-                    LabeledContent("Nombre", value: location.name)
-                    if !location.details.isEmpty {
-                        Text(location.details)
-                    }
-                    LabeledContent("Fuente", value: location.source.isEmpty ? "Sin registrar" : location.source)
-                    LabeledContent("Precisión", value: location.precision.displayName)
+            ScrollView {
+                VStack(alignment: .leading, spacing: FaroTheme.sectionSpacing) {
+                    header
+                    lookAroundSection
+                    zoneSection
+                    typeSection
+                    validationSection
                 }
-
-                Section("Zona general (compartible)") {
-                    TextField("Zona que sí podría mencionarse en público",
-                              text: $location.generalZoneName)
-                }
-
-                Section("Tipo") {
-                    Picker("Tipo", selection: $location.kind) {
-                        ForEach(LocationKind.allCases) { kind in
-                            Text(kind.displayName).tag(kind)
-                        }
-                    }
-                }
-
-                Section("Validación humana") {
-                    Picker("Estado", selection: $location.validationState) {
-                        ForEach(ValidationState.allCases) { state in
-                            Text(state.displayName).tag(state)
-                        }
-                    }
-                    .pickerStyle(.inline)
-                    .labelsHidden()
-                }
+                .padding(FaroTheme.screenPadding)
             }
+            .background(FaroTheme.background)
             .navigationTitle("Ubicación")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -172,6 +135,132 @@ struct LocationDetailView: View {
                     }
                 }
             }
+            .task { await loadLookAround() }
         }
+    }
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: location.kind.symbolName)
+                .font(.system(size: 22))
+                .foregroundStyle(.white)
+                .frame(width: 48, height: 48)
+                .background(location.markerColor)
+                .clipShape(Circle())
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(location.name)
+                    .font(.title3.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("\(location.kind.displayName) · \(location.precision.displayName)")
+                    .font(.subheadline)
+                    .foregroundStyle(FaroTheme.secondaryText)
+                if !location.details.isEmpty {
+                    Text(location.details)
+                        .font(.footnote)
+                        .foregroundStyle(FaroTheme.secondaryText)
+                }
+                if !location.source.isEmpty {
+                    Text("Fuente: \(location.source)")
+                        .font(.caption)
+                        .foregroundStyle(FaroTheme.secondaryText)
+                }
+                ValidationBadge(state: location.validationState)
+                    .padding(.top, 4)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .faroCard()
+    }
+
+    @ViewBuilder
+    private var lookAroundSection: some View {
+        if let scene = lookAroundScene {
+            VStack(alignment: .leading, spacing: 8) {
+                FaroSectionHeader(title: "Vista de calle",
+                                  subtitle: "Explora el entorno en 360°.")
+                LookAroundPreview(initialScene: scene)
+                    .frame(height: 200)
+                    .clipShape(RoundedRectangle(cornerRadius: FaroTheme.cornerRadius))
+            }
+        } else if lookAroundChecked {
+            HStack(spacing: 10) {
+                Image(systemName: "binoculars")
+                    .foregroundStyle(FaroTheme.secondaryText)
+                    .accessibilityHidden(true)
+                Text("No hay vista de calle disponible para este punto.")
+                    .font(.caption)
+                    .foregroundStyle(FaroTheme.secondaryText)
+            }
+            .faroCard()
+        } else {
+            ProgressView("Buscando vista de calle…")
+                .font(.caption)
+                .frame(maxWidth: .infinity)
+                .faroCard()
+        }
+    }
+
+    private var zoneSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            FaroSectionHeader(title: "Zona general (compartible)",
+                              subtitle: "Lo único que podría mencionarse en público.")
+            TextField("Zona que sí podría mencionarse en público",
+                      text: $location.generalZoneName)
+                .textFieldStyle(.plain)
+                .faroCard()
+        }
+    }
+
+    private var typeSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            FaroSectionHeader(title: "Tipo")
+            HStack(spacing: 12) {
+                Image(systemName: location.kind.symbolName)
+                    .foregroundStyle(FaroTheme.night)
+                    .frame(width: 28)
+                    .accessibilityHidden(true)
+                Picker("Tipo", selection: $location.kind) {
+                    ForEach(LocationKind.allCases) { kind in
+                        Text(kind.displayName).tag(kind)
+                    }
+                }
+                .pickerStyle(.menu)
+                .tint(FaroTheme.night)
+                Spacer(minLength: 0)
+            }
+            .faroCard()
+        }
+    }
+
+    private var validationSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            FaroSectionHeader(title: "Validación humana")
+            HStack(spacing: 12) {
+                Image(systemName: location.validationState.symbolName)
+                    .foregroundStyle(FaroTheme.color(for: location.validationState))
+                    .frame(width: 28)
+                    .accessibilityHidden(true)
+                Picker("Estado", selection: $location.validationState) {
+                    ForEach(ValidationState.allCases) { state in
+                        Text(state.displayName).tag(state)
+                    }
+                }
+                .pickerStyle(.menu)
+                .tint(FaroTheme.night)
+                Spacer(minLength: 0)
+            }
+            .faroCard()
+        }
+    }
+
+    private func loadLookAround() async {
+        let coordinate = CLLocationCoordinate2D(latitude: location.latitude,
+                                                longitude: location.longitude)
+        let request = MKLookAroundSceneRequest(coordinate: coordinate)
+        lookAroundScene = try? await request.scene
+        lookAroundChecked = true
     }
 }

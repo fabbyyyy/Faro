@@ -370,82 +370,95 @@ struct EthicsNoticeView: View {
     let onContinue: (AppRouter.IntakeMode) -> Void
     @State private var appeared = false
 
-    private let rows: [(symbol: String, text: String)] = [
+    private let rows: [(symbol: String, title: String, text: String)] = [
         ("building.columns",
-         "FARO no reemplaza a las autoridades, colectivos ni asesoría profesional. Es una herramienta para organizar información."),
+         "No reemplaza a las autoridades",
+         "FARO no sustituye a las autoridades, colectivos ni asesoría profesional. Es una herramienta para organizar información."),
         ("person.2",
+         "La familia revisa todo",
          "La información generada (resúmenes, fichas, reportes) debe ser revisada por la familia antes de usarse o compartirse."),
         ("lock.shield",
-         "FARO te ayuda a proteger datos sensibles: lo privado se queda privado salvo que tú decidas compartirlo.")
+         "Lo privado se queda privado",
+         "FARO te ayuda a proteger datos sensibles: nada se comparte salvo que tú lo decidas.")
     ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 0) {
             Text("Antes de empezar")
-                .font(.title2.weight(.semibold))
-                .padding(.top, 28)
+                .font(.largeTitle.weight(.bold))
+                .padding(.top, 48)
+                .padding(.bottom, 32)
                 .accessibilityAddTraits(.isHeader)
                 .faroEntrance(visible: appeared, delay: 0.0)
 
-            ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
-                noticeRow(symbol: row.symbol, text: row.text)
-                    .faroEntrance(visible: appeared, delay: Double(index) * 0.07 + 0.08)
+            VStack(alignment: .leading, spacing: 26) {
+                ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                    noticeRow(symbol: row.symbol, title: row.title, text: row.text)
+                        .faroEntrance(visible: appeared, delay: Double(index) * 0.08 + 0.1)
+                }
             }
 
             Spacer()
 
-            Text("¿Cómo prefieres empezar?")
-                .font(.subheadline.weight(.medium))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .faroEntrance(visible: appeared, delay: 0.30)
+            VStack(spacing: 12) {
+                Text("¿Cómo prefieres empezar?")
+                    .font(.subheadline.weight(.medium))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.bottom, 4)
+                    .faroEntrance(visible: appeared, delay: 0.30)
 
-            Button { onContinue(.conversational) } label: {
-                Label("Conversar con el asistente", systemImage: "bubble.left.and.text.bubble.right")
+                Button { onContinue(.conversational) } label: {
+                    Label("Conversar con el asistente", systemImage: "bubble.left.and.text.bubble.right")
+                }
+                .buttonStyle(HomeGlassActionButtonStyle(prominent: true))
+                .accessibilityHint("Respondes con tus palabras y el asistente organiza la información")
+                .faroEntrance(visible: appeared, delay: 0.33)
+
+                Button { onContinue(.guided) } label: {
+                    Label("Ir paso a paso", systemImage: "list.number")
+                }
+                .buttonStyle(HomeGlassActionButtonStyle())
+                .accessibilityHint("Una pregunta corta a la vez, más sencillo bajo estrés")
+                .faroEntrance(visible: appeared, delay: 0.36)
+
+                Button { onContinue(.posterImport) } label: {
+                    Label("Tengo un cartel o ficha", systemImage: "text.viewfinder")
+                }
+                .buttonStyle(HomeGlassActionButtonStyle())
+                .accessibilityHint("Fotografía un cartel de búsqueda y FARO extrae los datos para que los revises")
+                .faroEntrance(visible: appeared, delay: 0.39)
+
+                Text("Como te sea más cómodo. Puedes saltar cualquier pregunta.")
+                    .font(.footnote)
+                    .foregroundStyle(FaroTheme.secondaryText)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 6)
+                    .faroEntrance(visible: appeared, delay: 0.42)
             }
-            .buttonStyle(HomeGlassActionButtonStyle(prominent: true))
-            .accessibilityHint("Respondes con tus palabras y el asistente organiza la información")
-            .faroEntrance(visible: appeared, delay: 0.33)
-
-            Button { onContinue(.guided) } label: {
-                Label("Ir paso a paso", systemImage: "list.number")
-            }
-            .buttonStyle(HomeGlassActionButtonStyle())
-            .accessibilityHint("Una pregunta corta a la vez, más sencillo bajo estrés")
-            .faroEntrance(visible: appeared, delay: 0.36)
-
-            Button { onContinue(.posterImport) } label: {
-                Label("Tengo un cartel o ficha", systemImage: "text.viewfinder")
-            }
-            .buttonStyle(HomeGlassActionButtonStyle())
-            .accessibilityHint("Fotografía un cartel de búsqueda y FARO extrae los datos para que los revises")
-            .faroEntrance(visible: appeared, delay: 0.39)
-
-            Text("Como te sea más cómodo. Puedes saltar cualquier pregunta.")
-                .font(.footnote)
-                .foregroundStyle(FaroTheme.secondaryText)
-                .frame(maxWidth: .infinity)
-                .padding(.bottom, 14)
-                .faroEntrance(visible: appeared, delay: 0.42)
+            .padding(.bottom, 20)
         }
-        .padding(.horizontal, FaroTheme.screenPadding)
+        .padding(.horizontal, 28)
         .background(FaroTheme.background)
         .onAppear { withAnimation { appeared = true } }
     }
 
-    private func noticeRow(symbol: String, text: String) -> some View {
-        HStack(alignment: .top, spacing: 14) {
+    private func noticeRow(symbol: String, title: String, text: String) -> some View {
+        HStack(alignment: .top, spacing: 16) {
             Image(systemName: symbol)
-                .font(.title3)
+                .font(.system(size: 30, weight: .regular))
                 .foregroundStyle(FaroTheme.night)
-                .frame(width: 32, height: 32)
-                .background(FaroTheme.night.opacity(0.07))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .frame(width: 44)
                 .accessibilityHidden(true)
-            Text(text)
-                .font(.subheadline)
-                .foregroundStyle(.primary)
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.headline)
+                Text(text)
+                    .font(.subheadline)
+                    .foregroundStyle(FaroTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
+        .accessibilityElement(children: .combine)
     }
 }
 

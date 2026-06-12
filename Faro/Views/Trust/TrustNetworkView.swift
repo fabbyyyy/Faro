@@ -15,6 +15,7 @@ struct TrustNetworkView: View {
     @Environment(\.modelContext) private var modelContext
 
     @State private var showingAddContact = false
+    @State private var editingContact: TrustedContact?
 
     var body: some View {
         ScrollView {
@@ -36,9 +37,16 @@ struct TrustNetworkView: View {
                     ForEach(caseFile.contacts) { contact in
                         TrustContactCard(contact: contact)
                             .contextMenu {
-                                Button("Eliminar", role: .destructive) {
+                                Button {
+                                    editingContact = contact
+                                } label: {
+                                    Label("Editar", systemImage: "pencil")
+                                }
+                                Button(role: .destructive) {
                                     modelContext.delete(contact)
                                     caseFile.touch()
+                                } label: {
+                                    Label("Eliminar", systemImage: "trash")
                                 }
                             }
                     }
@@ -64,6 +72,10 @@ struct TrustNetworkView: View {
             AddContactView(caseFile: caseFile)
                 .presentationDetents([.large])
         }
+        .sheet(item: $editingContact) { contact in
+            AddContactView(caseFile: caseFile, contactToEdit: contact)
+                .presentationDetents([.large])
+        }
     }
 }
 
@@ -71,6 +83,7 @@ struct TrustNetworkView: View {
 
 struct AddContactView: View {
     var caseFile: CaseFile
+    var contactToEdit: TrustedContact?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
@@ -105,21 +118,36 @@ struct AddContactView: View {
                     Text(role.permissionsSummary)
                 }
             }
-            .navigationTitle("Agregar contacto")
+            .navigationTitle(contactToEdit == nil ? "Agregar contacto" : "Editar contacto")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                if let contact = contactToEdit {
+                    name = contact.name
+                    relationship = contact.relationship
+                    phone = contact.phone
+                    role = contact.role
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancelar") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Guardar") {
-                        let contact = TrustedContact(
-                            name: name,
-                            relationship: relationship,
-                            phone: phone,
-                            role: role
-                        )
-                        caseFile.contacts.append(contact)
+                        if let contact = contactToEdit {
+                            contact.name = name
+                            contact.relationship = relationship
+                            contact.phone = phone
+                            contact.role = role
+                        } else {
+                            let contact = TrustedContact(
+                                name: name,
+                                relationship: relationship,
+                                phone: phone,
+                                role: role
+                            )
+                            caseFile.contacts.append(contact)
+                        }
                         caseFile.touch()
                         try? modelContext.save()
                         dismiss()
