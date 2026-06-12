@@ -49,9 +49,6 @@ struct CaseDashboardView: View {
                 urgentActions
                     .faroEntrance(visible: appeared, delay: 0.05)
 
-                completenessCard
-                    .faroEntrance(visible: appeared, delay: 0.08)
-
                 if !rules.unmet.isEmpty {
                     missingInfoSection
                         .faroEntrance(visible: appeared, delay: 0.12)
@@ -85,6 +82,11 @@ struct CaseDashboardView: View {
         .background(FaroTheme.background)
         .navigationTitle("Resumen del caso")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                progressOrb
+            }
+        }
         .onAppear { withAnimation { appeared = true } }
         .onChange(of: selectedPhoto) { _, item in
             Task {
@@ -314,47 +316,41 @@ struct CaseDashboardView: View {
 
     // MARK: - Completitud
 
-    private var completenessCard: some View {
+    /// Anillo de progreso en la barra, como el del chat: información
+    /// reunida de forma orientativa. Toca para continuar con el asistente.
+    @ViewBuilder
+    private var progressOrb: some View {
         let percent = rules.completenessPercent
-        return VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Información reunida")
-                    .font(.headline)
-                Spacer()
-                Text("\(percent)%")
-                    .font(.title2.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(FaroTheme.night)
-            }
-
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(FaroTheme.secondaryText.opacity(0.12))
-                        .frame(height: 7)
-                    Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: [FaroTheme.amber, FaroTheme.amber.opacity(0.75)],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(
-                            width: max(7, geo.size.width * CGFloat(percent) / 100),
-                            height: 7
-                        )
-                        .animation(FaroTheme.springSmooth.delay(0.15), value: percent)
-                }
-            }
-            .frame(height: 7)
-
-            Text("Guía orientativa de qué falta por reunir. No es un valor oficial.")
-                .font(.caption)
-                .foregroundStyle(FaroTheme.secondaryText)
+        let orb = ZStack {
+            Circle()
+                .stroke(FaroTheme.secondaryText.opacity(0.24), lineWidth: 4)
+                .frame(width: 28, height: 28)
+            Circle()
+                .trim(from: 0, to: Double(percent) / 100)
+                .stroke(percent >= 100 ? FaroTheme.confirmedGreen : FaroTheme.amber,
+                        style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                .frame(width: 28, height: 28)
+                .rotationEffect(.degrees(-90))
+                .animation(.easeInOut(duration: 0.25), value: percent)
+            Text("\(percent)")
+                .font(.system(size: 9, weight: .semibold).monospacedDigit())
+                .foregroundStyle(FaroTheme.night)
         }
-        .faroCard()
+        .frame(width: 40, height: 40)
+        .contentShape(Circle())
+
+        Group {
+            if let onNavigate {
+                Button { onNavigate(.chat) } label: { orb }
+                    .buttonStyle(.plain)
+            } else {
+                NavigationLink(value: CaseSection.chat) { orb }
+                    .buttonStyle(.plain)
+            }
+        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Información reunida: \(percent) por ciento. Guía orientativa, no es un valor oficial.")
+        .accessibilityHint("Continúa completando datos con el asistente")
     }
 
     // MARK: - Información faltante

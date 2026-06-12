@@ -139,6 +139,18 @@ enum IntakeQuestionBank {
             rationale: "Ayuda a ubicar la última zona conocida para orientar la búsqueda."
         ),
         IntakeQuestion(
+            key: "photo",
+            category: .identification,
+            priority: 45,
+            humanQuestion: "¿Tienes una foto reciente de ella? Puedes adjuntarla con el botón de la cámara, aquí en el chat.",
+            formalLabel: "Foto reciente",
+            hint: "Una foto clara del rostro ayuda mucho en la ficha de búsqueda.",
+            isRequired: true,
+            reaskQuestion: "Cuando tengas una foto reciente, adjúntala con el botón de la cámara del chat.",
+            sampleAnswers: ["aquí está", "no tengo una a la mano"],
+            rationale: "La foto solo se usa donde tú decidas: ficha, cartel o reporte."
+        ),
+        IntakeQuestion(
             key: "clothing",
             category: .clothing,
             priority: 50,
