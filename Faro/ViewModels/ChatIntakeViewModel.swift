@@ -248,28 +248,69 @@ final class ChatIntakeViewModel {
     /// Al volver a una sesión existente: resume desde SwiftData, no de memoria.
     private func resumeIfNeeded() {
         guard !session.isCompleted else { return }
-        // Si el asistente ya tiene la última palabra (pregunta, resumen o nota),
-        // no hay nada que reanudar: el usuario solo continúa. Esto evita que se
-        // dupliquen mensajes cada vez que se entra y sale del asistente
-        // (en iPad la vista se recrea al cambiar de sección).
-        if let last = messages.last, last.role == .assistant { return }
 
-        let known = knownFieldLabels
-        let pendingCount = openQuestions.count
-        var summary = "Retomamos donde nos quedamos."
-        if !known.isEmpty {
-            summary += " Ya tenemos: \(known.prefix(4).joined(separator: ", ").lowercased())."
-        }
-        if pendingCount > 0 {
-            summary += " Hay \(pendingCount) dato\(pendingCount == 1 ? "" : "s") pendiente\(pendingCount == 1 ? "" : "s")."
-        }
-        appendAssistant(summary, kind: .resumeSummary)
+        // Limpia una pregunta que quedó pendiente en pantalla pero cuyo dato ya
+        // se completó después (p.ej. el caso demo, Modo Crisis o un import que
+        // sincroniza estados tras haber planteado la pregunta). Sin esto, el
+        // asistente repite "¿Cómo se llama?" justo después de decir "Ya tenemos
+        // el nombre".
+        let prunedStale = pruneStaleTrailingQuestions()
 
-        if let active = activeQuestion {
+        // Si el asistente ya tiene la última palabra (pregunta vigente, resumen
+        // o nota) y no hubo nada obsoleto que limpiar, no hay nada que reanudar:
+        // el usuario solo continúa. Esto evita duplicar mensajes cada vez que se
+        // entra y sale del asistente (en iPad la vista se recrea al cambiar de
+        // sección).
+        if !prunedStale, let last = messages.last, last.role == .assistant { return }
+
+        if !prunedStale {
+            let known = knownFieldLabels
+            let pendingCount = openQuestions.count
+            var summary = "Retomamos donde nos quedamos."
+            if !known.isEmpty {
+                summary += " Ya tenemos: \(known.prefix(4).joined(separator: ", ").lowercased())."
+            }
+            if pendingCount > 0 {
+                summary += " Hay \(pendingCount) dato\(pendingCount == 1 ? "" : "s") pendiente\(pendingCount == 1 ? "" : "s")."
+            }
+            appendAssistant(summary, kind: .resumeSummary)
+        }
+
+        // Solo retoma la pregunta activa si sigue abierta; si ya se respondió,
+        // continúa con la siguiente pregunta sin dato.
+        if let active = activeQuestion, isOpen(active.key) {
             appendAssistant(active.humanQuestion, kind: .question, questionKey: active.key)
         } else {
+            session.activeQuestionKey = nil
             askNextQuestion()
         }
+    }
+
+    /// ¿La pregunta sigue abierta (sin dato confirmado/editado)?
+    private func isOpen(_ key: String) -> Bool {
+        guard let state = caseFile.questionStates.first(where: { $0.questionKey == key }) else { return true }
+        return state.status.isOpen
+    }
+
+    /// Elimina las preguntas del asistente al final del hilo cuyo campo ya quedó
+    /// respondido. Devuelve `true` si limpió alguna. No toca mensajes del usuario
+    /// ni preguntas de campos todavía abiertos.
+    @discardableResult
+    private func pruneStaleTrailingQuestions() -> Bool {
+        var toDelete: [ChatMessage] = []
+        for message in session.sortedMessages.reversed() {
+            guard message.role == .assistant, message.kind == .question,
+                  let key = message.questionKey, !isOpen(key) else { break }
+            toDelete.append(message)
+        }
+        guard !toDelete.isEmpty else { return false }
+        for message in toDelete {
+            if session.activeQuestionKey == message.questionKey { session.activeQuestionKey = nil }
+            context.delete(message)
+        }
+        persist()
+        loadMessages()
+        return true
     }
 
     // MARK: Envío de mensajes del usuario

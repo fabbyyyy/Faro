@@ -15,7 +15,12 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
 open Faro.xcodeproj
 ```
 
-There are no tests, linting scripts, or Package.swift — the project is a pure Xcode project. Launch argument `-FaroOpenDemo` opens the demo case directly on startup (useful for UI work).
+There are no tests, linting scripts, or Package.swift — the project is a pure Xcode project. Launch arguments (handled in `RootView.handleLaunchArguments()`):
+- `-FaroOpenDemo` — opens the Mariana López demo case directly on startup (useful for UI work / presentations)
+- `-FaroOpenIntake` — opens straight into conversational chat intake
+- `-FaroIntakeSelfTest` — runs the chat-intake self-test path (see `ChatIntakeView`)
+
+`AGENTS.md` (for Codex) mirrors this file; keep the two in sync when changing build/architecture guidance.
 
 ## Architecture
 
@@ -35,7 +40,7 @@ The mode is chosen in `EthicsNoticeView` (the "Antes de empezar" sheet from `Hom
 
 ### SwiftData schema
 
-`CaseFile` is the only root model inserted into the context. Everything else is a cascade-delete child relationship. All `@Model` types must be listed in the `Schema` in `FaroApp.swift` — currently registered: `CaseFile`, `MissingPerson`, `EvidenceItem`, `TimelineEvent`, `TrustedContact`, `CaseTask`, `CaseQuestion`, `LocationRecord`, `GeneratedReport`, `PublicPoster`. Additional `@Model` types exist in the codebase (`ChatSession`, `ChatMessage`, `IntakeQuestionRecord`, `CaseFicha`) and must be added to the Schema if SwiftData doesn't infer them automatically.
+`CaseFile` is the only root model inserted into the context. Everything else is a cascade-delete child relationship. All `@Model` types must be listed explicitly in the `Schema` in `FaroApp.swift` — currently all 14: `CaseFile`, `MissingPerson`, `EvidenceItem`, `TimelineEvent`, `TrustedContact`, `CaseTask`, `CaseQuestion`, `LocationRecord`, `GeneratedReport`, `PublicPoster`, `ChatSession`, `ChatMessage`, `IntakeQuestionRecord`, `CaseFicha`. When you add a new `@Model`, add it to this `Schema` array — SwiftData inference is not relied upon here.
 
 ```
 CaseFile

@@ -9,6 +9,7 @@
 
 import Foundation
 import SwiftData
+import UIKit
 
 enum DemoCaseFactory {
 
@@ -39,6 +40,9 @@ enum DemoCaseFactory {
         person.frequentPlaces = "Biblioteca central, cafetería La Espiga, casa de su prima en colonia Roble."
         person.possibleCompanions = "Compañeras del taller de cerámica de los martes."
         person.infoState = .confirmed
+        // Retrato ficticio incluido en Assets ("Caso demo"), comprimido a JPEG
+        // para no inflar el almacenamiento con el PNG original.
+        person.photoData = UIImage(named: "Caso demo")?.jpegData(compressionQuality: 0.8)
         caseFile.person = person
 
         // MARK: Evidencia
