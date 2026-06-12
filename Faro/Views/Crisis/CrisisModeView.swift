@@ -15,15 +15,24 @@ struct CrisisModeView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     @State private var viewModel = CrisisFlowViewModel()
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var goingForward = true
 
+    /// Con "Reducir movimiento" se sustituye el deslizamiento por un fundido.
     private var stepTransition: AnyTransition {
-        .asymmetric(
+        if reduceMotion { return .opacity }
+        return .asymmetric(
             insertion: .move(edge: goingForward ? .trailing : .leading).combined(with: .opacity),
             removal:   .move(edge: goingForward ? .leading  : .trailing).combined(with: .opacity)
         )
+    }
+
+    /// Animación de cambio de paso, también atenuada con "Reducir movimiento".
+    private var stepAnimation: Animation {
+        reduceMotion ? .easeInOut(duration: 0.2) : FaroTheme.springSmooth
     }
 
     var body: some View {
@@ -52,7 +61,7 @@ struct CrisisModeView: View {
                     if viewModel.currentStep != .name {
                         Button("Atrás") {
                             goingForward = false
-                            withAnimation(FaroTheme.springSmooth) { viewModel.goBack() }
+                            withAnimation(stepAnimation) { viewModel.goBack() }
                         }
                     } else {
                         Button("Cancelar") { dismiss() }
@@ -89,9 +98,11 @@ struct CrisisModeView: View {
     }
 
     private var photoStep: some View {
-        step {
+        let hasPhoto = viewModel.photoData != nil
+        let photoData = viewModel.photoData
+        return step {
             VStack(spacing: 14) {
-                if let data = viewModel.photoData, let image = UIImage(data: data) {
+                if let data = photoData, let image = UIImage(data: data) {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFill()
@@ -100,18 +111,18 @@ struct CrisisModeView: View {
                         .accessibilityLabel("Foto seleccionada de la persona")
                 }
                 PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                    Label(viewModel.photoData == nil ? "Elegir foto" : "Cambiar foto",
+                    Label(hasPhoto ? "Cambiar foto" : "Elegir foto",
                           systemImage: "photo.on.rectangle")
                 }
                 .buttonStyle(FaroSecondaryButtonStyle())
                 .onChange(of: selectedPhoto) { _, item in
-                    Task { @MainActor in
+                    Task {
                         if let data = try? await item?.loadTransferable(type: Data.self) {
-                            viewModel.photoData = data
+                            await MainActor.run { viewModel.photoData = data }
                         }
                     }
                 }
-                if viewModel.photoData != nil { continueButton }
+                if hasPhoto { continueButton }
             }
         }
     }
@@ -246,7 +257,7 @@ struct CrisisModeView: View {
             ? nil
             : {
                 goingForward = true
-                withAnimation(FaroTheme.springSmooth) { viewModel.markUnknown() }
+                withAnimation(stepAnimation) { viewModel.markUnknown() }
             }
 
         return CrisisQuestionView(
@@ -272,7 +283,7 @@ struct CrisisModeView: View {
         if viewModel.isLastStep {
             finish()
         } else {
-            withAnimation(FaroTheme.springSmooth) { viewModel.advance() }
+            withAnimation(stepAnimation) { viewModel.advance() }
         }
     }
 

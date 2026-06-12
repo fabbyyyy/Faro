@@ -39,7 +39,10 @@ struct CasesListView: View {
                     title: "Aún no tienes fichas guardadas",
                     message: "Puedes crear una nueva o abrir el caso demo.",
                     actionTitle: "Crear caso",
-                    action: { router.showingCrisisFlow = true }
+                    action: {
+                        router.intakeMode = .conversational
+                        router.showingCrisisFlow = true
+                    }
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(FaroTheme.background)

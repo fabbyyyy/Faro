@@ -115,11 +115,30 @@ extension View {
 
     /// Animación de entrada escalonada: opacidad + deslizamiento hacia arriba.
     /// Llama con `appeared` cambiando de false → true dentro de onAppear.
+    /// Respeta "Reducir movimiento": en ese caso se omite el deslizamiento
+    /// y queda solo un fundido suave de opacidad.
     func faroEntrance(visible: Bool, delay: Double = 0) -> some View {
-        self
+        modifier(FaroEntranceModifier(visible: visible, delay: delay))
+    }
+}
+
+// MARK: - Entrada escalonada (accesible)
+
+struct FaroEntranceModifier: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let visible: Bool
+    let delay: Double
+
+    func body(content: Content) -> some View {
+        content
             .opacity(visible ? 1 : 0)
-            .offset(y: visible ? 0 : 14)
-            .animation(FaroTheme.springEntrance.delay(delay), value: visible)
+            .offset(y: reduceMotion ? 0 : (visible ? 0 : 14))
+            .animation(
+                reduceMotion
+                    ? .easeOut(duration: 0.2).delay(delay)
+                    : FaroTheme.springEntrance.delay(delay),
+                value: visible
+            )
     }
 }
 

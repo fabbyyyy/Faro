@@ -145,6 +145,41 @@ enum EvidenceKind: String, Codable, CaseIterable, Identifiable {
         case .other:         return "tray"
         }
     }
+
+    /// Confianza orientativa según el tipo de origen. Determinista y
+    /// explicable: una captura original pesa más que un rumor. No sustituye
+    /// la validación humana; solo orienta qué tan firme es el dato.
+    var sourceConfidence: ConfidenceLevel {
+        switch self {
+        case .photo, .document, .communication: return .high
+        case .locationInfo, .contact, .medical: return .medium
+        case .testimony, .rumor, .unconfirmed, .other: return .low
+        }
+    }
+
+    /// Por qué ese origen tiene esa confianza (texto breve para la UI).
+    var sourceConfidenceRationale: String {
+        switch self {
+        case .photo, .document:
+            return "Documento o imagen original: por lo general, confianza alta."
+        case .communication:
+            return "Captura o mensaje original: confianza alta como registro, sujeto a tu revisión."
+        case .locationInfo:
+            return "Dato de ubicación: confianza media; puede estar desactualizado."
+        case .contact:
+            return "Dato de contacto: confianza media."
+        case .medical:
+            return "Dato de salud: confianza media; se trata como sensible."
+        case .testimony:
+            return "Relato de un tercero: confianza baja hasta confirmarse."
+        case .rumor:
+            return "Rumor: no confirmado. Nunca se publica."
+        case .unconfirmed:
+            return "Información sin confirmar: confianza baja."
+        case .other:
+            return "Origen sin clasificar: confianza baja."
+        }
+    }
 }
 
 /// Sensibilidad de una evidencia. Define qué puede salir del expediente.

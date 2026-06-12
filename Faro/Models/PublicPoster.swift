@@ -38,10 +38,42 @@ final class PublicPoster {
     /// Contacto que se muestra públicamente (definido por la familia).
     var publicContact: String = ""
 
+    // MARK: Sobrescrituras editables (vacío = usar el dato del expediente)
+    // Permiten ajustar la ficha pública sin alterar los datos del caso.
+
+    var overrideName: String = ""
+    var overrideAgeText: String = ""
+    var overrideZone: String = ""
+    var overrideDescription: String = ""
+
+    /// Foto específica para la ficha pública (si la familia elige otra).
+    @Attribute(.externalStorage)
+    var overridePhotoData: Data?
+
     var caseFile: CaseFile?
 
     init(tone: PosterTone = .formal) {
         self.id = UUID()
         self.tone = tone
+    }
+
+    // MARK: Valores efectivos (sobrescritura si existe, si no el del caso)
+
+    func effectiveName(_ person: MissingPerson?) -> String {
+        overrideName.isEmpty ? (person?.displayName ?? "") : overrideName
+    }
+
+    func effectiveAgeText(_ person: MissingPerson?) -> String {
+        overrideAgeText.isEmpty
+            ? (person?.approximateAge.map { "\($0) años" } ?? "")
+            : overrideAgeText
+    }
+
+    func effectiveDescription(_ person: MissingPerson?) -> String {
+        overrideDescription.isEmpty ? (person?.physicalDescription ?? "") : overrideDescription
+    }
+
+    func effectivePhoto(_ person: MissingPerson?) -> Data? {
+        overridePhotoData ?? person?.photoData
     }
 }

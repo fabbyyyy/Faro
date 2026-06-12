@@ -66,6 +66,24 @@ struct IntakeQuestion: Identifiable, Hashable {
     let reaskQuestion: String
     /// Ejemplos de respuesta (para futura evaluación del flujo, no se muestran).
     let sampleAnswers: [String]
+    /// Por qué se pide este dato. Da confianza; se muestra al preguntar.
+    let rationale: String?
+
+    init(key: String, category: IntakeCategory, priority: Int,
+         humanQuestion: String, formalLabel: String, hint: String?,
+         isRequired: Bool, reaskQuestion: String, sampleAnswers: [String],
+         rationale: String? = nil) {
+        self.key = key
+        self.category = category
+        self.priority = priority
+        self.humanQuestion = humanQuestion
+        self.formalLabel = formalLabel
+        self.hint = hint
+        self.isRequired = isRequired
+        self.reaskQuestion = reaskQuestion
+        self.sampleAnswers = sampleAnswers
+        self.rationale = rationale
+    }
 
     var id: String { key }
 }
@@ -105,7 +123,8 @@ enum IntakeQuestionBank {
             hint: "Puede ser aproximado. Después se puede precisar.",
             isRequired: true,
             reaskQuestion: "Antes de cerrar la ficha, hay un dato que dejamos pendiente: ¿recuerdas aproximadamente a qué hora fue la última vez que se supo de ella?",
-            sampleAnswers: ["como a las 8 creo", "ayer en la noche", "no sé"]
+            sampleAnswers: ["como a las 8 creo", "ayer en la noche", "no sé"],
+            rationale: "Ayuda a fijar la última referencia temporal conocida."
         ),
         IntakeQuestion(
             key: "lastSeenPlace",
@@ -116,7 +135,8 @@ enum IntakeQuestionBank {
             hint: "El lugar como lo recuerdes: una calle, una parada, un edificio.",
             isRequired: true,
             reaskQuestion: "Cuando lo tengas: ¿dónde fue la última vez que se supo de ella?",
-            sampleAnswers: ["saliendo de la uni", "en la parada del camión", "no sabemos"]
+            sampleAnswers: ["saliendo de la uni", "en la parada del camión", "no sabemos"],
+            rationale: "Ayuda a ubicar la última zona conocida para orientar la búsqueda."
         ),
         IntakeQuestion(
             key: "clothing",
@@ -160,7 +180,8 @@ enum IntakeQuestionBank {
             hint: "Esta información se marca como sensible y no se difunde.",
             isRequired: false,
             reaskQuestion: "¿Hay algún dato de salud que debamos registrar? Se mantiene privado.",
-            sampleAnswers: ["usa inhalador para el asma", "no"]
+            sampleAnswers: ["usa inhalador para el asma", "no"],
+            rationale: "Se guarda como información sensible y no se publica automáticamente."
         ),
         IntakeQuestion(
             key: "phone",
@@ -171,7 +192,8 @@ enum IntakeQuestionBank {
             hint: "Esto ayuda a saber qué señales buscar.",
             isRequired: false,
             reaskQuestion: "¿Sabes si llevaba su celular?",
-            sampleAnswers: ["sí, su celular", "creo que sí", "no sé"]
+            sampleAnswers: ["sí, su celular", "creo que sí", "no sé"],
+            rationale: "Ayuda a saber qué dispositivos o señales podrían buscarse."
         ),
         IntakeQuestion(
             key: "transport",
@@ -193,7 +215,8 @@ enum IntakeQuestionBank {
             hint: nil,
             isRequired: false,
             reaskQuestion: "¿Quieres agregar lugares que frecuenta? Ayuda a orientar la búsqueda.",
-            sampleAnswers: ["la biblioteca y un café cerca de la uni"]
+            sampleAnswers: ["la biblioteca y un café cerca de la uni"],
+            rationale: "Orienta dónde buscar. Se mantiene privado, no se publica."
         ),
         IntakeQuestion(
             key: "companions",
@@ -215,7 +238,8 @@ enum IntakeQuestionBank {
             hint: "Nombre y teléfono de alguien que apoye con la información.",
             isRequired: false,
             reaskQuestion: "Si quieres, registramos a una persona de confianza para el caso.",
-            sampleAnswers: ["mi hermana Paola, 55 0000 0002"]
+            sampleAnswers: ["mi hermana Paola, 55 0000 0002"],
+            rationale: "Permite tener a quién contactar. Se mantiene privado."
         ),
         IntakeQuestion(
             key: "evidenceAvailable",
@@ -226,7 +250,8 @@ enum IntakeQuestionBank {
             hint: "Después podrás agregarlos al expediente desde Evidencia.",
             isRequired: false,
             reaskQuestion: "¿Encontraste mensajes o capturas de ese día que podamos registrar?",
-            sampleAnswers: ["tengo el último chat", "hay una nota de voz"]
+            sampleAnswers: ["tengo el último chat", "hay una nota de voz"],
+            rationale: "Las capturas y audios pueden volverse eventos del caso tras tu revisión."
         )
     ]
 

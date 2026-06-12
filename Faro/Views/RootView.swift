@@ -13,8 +13,18 @@ import SwiftData
 @Observable
 @MainActor
 final class AppRouter {
+    /// Cómo se registra un caso nuevo: conversando o paso a paso.
+    enum IntakeMode {
+        /// Chat de intake con asistente (extracción de varios datos por frase).
+        case conversational
+        /// Una pregunta por pantalla, respuestas cortas (modo bajo estrés).
+        case guided
+    }
+
     var activeCase: CaseFile?
     var showingCrisisFlow = false
+    /// Modo elegido para el alta del caso actual.
+    var intakeMode: IntakeMode = .conversational
 }
 
 struct RootView: View {
@@ -31,8 +41,13 @@ struct RootView: View {
         }
         .environment(router)
         .fullScreenCover(isPresented: $router.showingCrisisFlow) {
-            CrisisModeView()
-                .environment(router)
+            Group {
+                switch router.intakeMode {
+                case .conversational: ChatIntakeView()
+                case .guided:         CrisisModeView()
+                }
+            }
+            .environment(router)
         }
         .tint(FaroTheme.night)
         .onAppear { handleLaunchArguments() }

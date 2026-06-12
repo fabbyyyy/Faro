@@ -9,6 +9,7 @@
 
 import SwiftUI
 import SwiftData
+import PhotosUI
 
 struct ChatIntakeView: View {
     /// Caso existente a retomar, o nil para crear uno nuevo (borrador).
@@ -26,6 +27,7 @@ struct ChatIntakeView: View {
     @State private var showingPendingPanel = false
     @State private var showingDraftFicha = false
     @State private var showingReview = false
+    @State private var selectedPersonPhoto: PhotosPickerItem?
 
     var body: some View {
         Group {
@@ -201,22 +203,53 @@ struct ChatIntakeView: View {
         return VStack(spacing: 4) {
             ProgressView(value: Double(done), total: Double(total))
                 .tint(FaroTheme.amber)
-            HStack {
+            HStack(spacing: 8) {
                 Text("\(done) de \(total) datos")
                     .font(.caption2)
                     .foregroundStyle(FaroTheme.secondaryText)
-                Spacer()
                 if viewModel.openQuestions.count > 0 && viewModel.answeredCount > 0 {
-                    Text("\(viewModel.openQuestions.count) pendientes")
+                    Text("· \(viewModel.openQuestions.count) pendientes")
                         .font(.caption2)
                         .foregroundStyle(FaroTheme.amber)
                 }
+                Spacer()
+                saveStatusView(viewModel)
             }
+            .animation(.easeInOut(duration: 0.2), value: viewModel.saveStatus)
         }
         .padding(.horizontal, FaroTheme.screenPadding)
         .padding(.top, 8)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Progreso: \(done) de \(total) datos reunidos. Puedes saltar cualquier pregunta.")
+    }
+
+    /// Indicador discreto de autosave: confirma que nada se pierde.
+    @ViewBuilder
+    private func saveStatusView(_ viewModel: ChatIntakeViewModel) -> some View {
+        switch viewModel.saveStatus {
+        case .saving:
+            HStack(spacing: 4) {
+                ProgressView().controlSize(.mini)
+                Text("Guardando…")
+            }
+            .font(.caption2)
+            .foregroundStyle(FaroTheme.secondaryText)
+            .accessibilityLabel("Guardando")
+        case .saved:
+            Label("Guardado", systemImage: "checkmark.circle.fill")
+                .font(.caption2)
+                .labelStyle(.titleAndIcon)
+                .foregroundStyle(FaroTheme.confirmedGreen)
+                .accessibilityLabel("Cambios guardados")
+        case .failed:
+            Label("Sin guardar", systemImage: "exclamationmark.triangle.fill")
+                .font(.caption2)
+                .labelStyle(.titleAndIcon)
+                .foregroundStyle(FaroTheme.amber)
+                .accessibilityLabel("No se pudo guardar")
+        case .idle:
+            EmptyView()
+        }
     }
 
     // MARK: - Respuestas rápidas
@@ -251,7 +284,34 @@ struct ChatIntakeView: View {
     // MARK: - Barra de entrada
 
     private func inputBar(_ viewModel: ChatIntakeViewModel) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
+            // Foto de la persona — acceso rápido desde el chat.
+            PhotosPicker(selection: $selectedPersonPhoto, matching: .images) {
+                ZStack {
+                    if let data = viewModel.caseFile.person?.photoData,
+                       let image = UIImage(data: data) {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 36, height: 36)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    } else {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(FaroTheme.secondaryText.opacity(0.10))
+                            .frame(width: 36, height: 36)
+                            .overlay(
+                                Image(systemName: "camera")
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(FaroTheme.secondaryText)
+                            )
+                    }
+                }
+                .frame(width: 44, height: 44) // Objetivo táctil accesible.
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(viewModel.caseFile.person?.photoData != nil ? "Cambiar foto de la persona" : "Agregar foto de la persona")
+
             TextField("Escribe con tus palabras…", text: $inputText, axis: .vertical)
                 .font(.body)
                 .lineLimit(1...4)
@@ -272,6 +332,8 @@ struct ChatIntakeView: View {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.system(size: 32))
                     .foregroundStyle(inputText.isEmpty ? FaroTheme.secondaryText.opacity(0.4) : FaroTheme.night)
+                    .frame(width: 44, height: 44) // Objetivo táctil accesible.
+                    .contentShape(Rectangle())
             }
             .disabled(inputText.isEmpty || viewModel.isProcessing)
             .accessibilityLabel("Enviar respuesta")
@@ -279,6 +341,19 @@ struct ChatIntakeView: View {
         .padding(.horizontal, FaroTheme.screenPadding)
         .padding(.vertical, 10)
         .background(FaroTheme.background)
+        .onChange(of: selectedPersonPhoto) { _, item in
+            Task {
+                if let data = try? await item?.loadTransferable(type: Data.self) {
+                    await MainActor.run {
+                        if viewModel.caseFile.person == nil {
+                            viewModel.caseFile.person = MissingPerson()
+                        }
+                        viewModel.caseFile.person?.photoData = data
+                        viewModel.persist()
+                    }
+                }
+            }
+        }
     }
 
     private func submit(_ viewModel: ChatIntakeViewModel) {

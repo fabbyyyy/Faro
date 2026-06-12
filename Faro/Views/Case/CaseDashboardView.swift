@@ -8,6 +8,7 @@
 
 import SwiftUI
 import SwiftData
+import PhotosUI
 
 struct CaseDashboardView: View {
     @Bindable var caseFile: CaseFile
@@ -18,12 +19,12 @@ struct CaseDashboardView: View {
     private let services = AppServices.shared
     @State private var aiSummary: String?
     @State private var appeared = false
+    @State private var selectedPhoto: PhotosPickerItem?
 
     private var rules: [CompletenessRule] { services.scoring.evaluate(caseFile) }
 
     // Agrupación semántica de secciones
-    private let coreSections:  [CaseSection] = [.timeline, .evidence, .validation, .questions]
-    private let toolSections:  [CaseSection] = [.poster, .report, .trust, .map]
+    private let coreSections:  [CaseSection] = [.chat, .timeline, .evidence, .validation, .questions]
     private let systemSections:[CaseSection] = [.privacy, .settings]
 
     var body: some View {
@@ -32,29 +33,41 @@ struct CaseDashboardView: View {
                 personHeader
                     .faroEntrance(visible: appeared, delay: 0.0)
 
-                completenessCard
+                // Siguiente paso recomendado: una sola acción clara, siempre
+                // visible. En crisis, la app decide qué sigue, no la familia.
+                if let step = nextStep {
+                    nextStepCard(step)
+                        .faroEntrance(visible: appeared, delay: 0.03)
+                }
+
+                // Acciones urgentes: difundir y reportar — al tope para que la
+                // familia las encuentre de inmediato, sin tener que desplazarse.
+                urgentActions
                     .faroEntrance(visible: appeared, delay: 0.05)
+
+                completenessCard
+                    .faroEntrance(visible: appeared, delay: 0.08)
 
                 if !rules.unmet.isEmpty {
                     missingInfoSection
-                        .faroEntrance(visible: appeared, delay: 0.10)
+                        .faroEntrance(visible: appeared, delay: 0.12)
                 }
 
                 aiSummaryCard
-                    .faroEntrance(visible: appeared, delay: 0.12)
+                    .faroEntrance(visible: appeared, delay: 0.14)
 
                 sectionGroup(
                     title: "Expediente",
                     subtitle: "Registra y organiza los datos del caso",
                     sections: coreSections,
-                    startDelay: 0.16
+                    startDelay: 0.18
                 )
 
                 sectionGroup(
-                    title: "Herramientas",
-                    subtitle: "Genera documentos y localiza zonas",
-                    sections: toolSections,
-                    startDelay: 0.28
+                    title: "Más herramientas",
+                    subtitle: nil,
+                    sections: [.trust, .map],
+                    startDelay: 0.32
                 )
 
                 sectionGroup(
@@ -72,13 +85,120 @@ struct CaseDashboardView: View {
         .navigationTitle("Resumen del caso")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { withAnimation { appeared = true } }
+        .onChange(of: selectedPhoto) { _, item in
+            Task {
+                if let data = try? await item?.loadTransferable(type: Data.self) {
+                    await MainActor.run {
+                        if caseFile.person == nil { caseFile.person = MissingPerson() }
+                        caseFile.person?.photoData = data
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Siguiente paso recomendado
+
+    private struct NextStep {
+        let section: CaseSection
+        let title: String
+        let detail: String
+        let symbol: String
+    }
+
+    /// La acción más importante según el estado del caso. Prioridad:
+    /// revisar pendientes → completar datos → ficha pública → reporte.
+    private var nextStep: NextStep? {
+        let pending = caseFile.pendingReviewCount
+        if pending > 0 {
+            return NextStep(
+                section: .validation,
+                title: "Revisar \(pending) dato\(pending == 1 ? "" : "s") pendiente\(pending == 1 ? "" : "s")",
+                detail: "Confirma o corrige lo que se sugirió antes de usarlo.",
+                symbol: "checkmark.seal"
+            )
+        }
+        if rules.completenessPercent < 60 {
+            return NextStep(
+                section: .chat,
+                title: "Continuar con el asistente",
+                detail: "Completa la información del caso conversando, paso a paso.",
+                symbol: "bubble.left.and.text.bubble.right"
+            )
+        }
+        if caseFile.posters.isEmpty {
+            return NextStep(
+                section: .poster,
+                title: "Generar ficha pública",
+                detail: "Crea una ficha segura para difundir, con filtro ético.",
+                symbol: "doc.richtext"
+            )
+        }
+        if caseFile.reports.isEmpty {
+            return NextStep(
+                section: .report,
+                title: "Preparar reporte formal",
+                detail: "Organiza el documento para autoridad o colectivo.",
+                symbol: "doc.text.below.ecg"
+            )
+        }
+        return nil
+    }
+
+    @ViewBuilder
+    private func nextStepCard(_ step: NextStep) -> some View {
+        let card = HStack(spacing: 14) {
+            Image(systemName: step.symbol)
+                .font(.system(size: 22, weight: .medium))
+                .foregroundStyle(FaroTheme.night)
+                .frame(width: 46, height: 46)
+                .background(FaroTheme.night.opacity(0.10))
+                .clipShape(RoundedRectangle(cornerRadius: FaroTheme.smallCornerRadius, style: .continuous))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Siguiente paso")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(FaroTheme.amber)
+                Text(step.title)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                Text(step.detail)
+                    .font(.caption)
+                    .foregroundStyle(FaroTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            Image(systemName: "chevron.right")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(FaroTheme.secondaryText.opacity(0.5))
+                .accessibilityHidden(true)
+        }
+        .padding(FaroTheme.cardPadding)
+        .background(FaroTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: FaroTheme.cornerRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: FaroTheme.cornerRadius, style: .continuous)
+                .strokeBorder(FaroTheme.amber.opacity(0.30), lineWidth: 1)
+        )
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Siguiente paso recomendado: \(step.title). \(step.detail)")
+        .accessibilityHint("Toca para continuar")
+
+        if let onNavigate {
+            Button { onNavigate(step.section) } label: { card }
+                .buttonStyle(FaroCardButtonStyle())
+        } else {
+            NavigationLink(value: step.section) { card }
+                .buttonStyle(FaroCardButtonStyle())
+        }
     }
 
     // MARK: - Persona
 
     private var personHeader: some View {
         HStack(spacing: 16) {
-            personPhoto
+            personPhotoButton
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(caseFile.person?.displayName ?? "Sin nombre todavía")
@@ -107,23 +227,86 @@ struct CaseDashboardView: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// Foto de la persona — toca para agregar o cambiar.
+    private var personPhotoButton: some View {
+        PhotosPicker(selection: $selectedPhoto, matching: .images) {
+            ZStack(alignment: .bottomTrailing) {
+                if let data = caseFile.person?.photoData, let image = UIImage(data: data) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 72, height: 72)
+                        .clipShape(RoundedRectangle(cornerRadius: FaroTheme.cornerRadius, style: .continuous))
+                } else {
+                    RoundedRectangle(cornerRadius: FaroTheme.cornerRadius, style: .continuous)
+                        .fill(FaroTheme.secondaryText.opacity(0.08))
+                        .frame(width: 72, height: 72)
+                        .overlay(
+                            Image(systemName: "person.crop.rectangle.badge.plus")
+                                .font(.system(size: 28, weight: .light))
+                                .foregroundStyle(FaroTheme.secondaryText)
+                        )
+                }
+                // Insignia de cámara
+                Image(systemName: "camera.circle.fill")
+                    .font(.system(size: 20))
+                    .foregroundStyle(FaroTheme.night)
+                    .background(FaroTheme.background, in: Circle())
+                    .offset(x: 4, y: 4)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(caseFile.person?.photoData != nil
+            ? "Cambiar foto de \(caseFile.person?.displayName ?? "la persona")"
+            : "Agregar foto de la persona")
+    }
+
+    // MARK: - Acciones urgentes
+
+    private var urgentActions: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            FaroSectionHeader(title: "Difundir y reportar",
+                              subtitle: "Las dos acciones más urgentes cuando falta una persona")
+            HStack(spacing: 10) {
+                urgentActionButton(section: .poster,
+                                   label: "Cartel para difundir",
+                                   symbol: "doc.richtext",
+                                   accent: FaroTheme.amber)
+                urgentActionButton(section: .report,
+                                   label: "Reporte a autoridades",
+                                   symbol: "doc.text.below.ecg",
+                                   accent: FaroTheme.night)
+            }
+        }
+    }
+
     @ViewBuilder
-    private var personPhoto: some View {
-        if let data = caseFile.person?.photoData, let image = UIImage(data: data) {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 72, height: 72)
-                .clipShape(RoundedRectangle(cornerRadius: FaroTheme.cornerRadius, style: .continuous))
-                .accessibilityLabel("Foto de \(caseFile.person?.displayName ?? "la persona")")
+    private func urgentActionButton(section: CaseSection,
+                                    label: String,
+                                    symbol: String,
+                                    accent: Color) -> some View {
+        let button = VStack(spacing: 8) {
+            Image(systemName: symbol)
+                .font(.system(size: 24, weight: .light))
+                .foregroundStyle(accent)
+                .frame(height: 32)
+            Text(label)
+                .font(.subheadline.weight(.medium))
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.primary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 16)
+        .padding(.horizontal, 8)
+        .background(accent.opacity(0.07))
+        .clipShape(RoundedRectangle(cornerRadius: FaroTheme.cornerRadius, style: .continuous))
+
+        if let onNavigate {
+            Button { onNavigate(section) } label: { button }
+                .buttonStyle(FaroCardButtonStyle())
         } else {
-            Image(systemName: "person.crop.circle.dashed")
-                .font(.system(size: 40, weight: .light))
-                .foregroundStyle(FaroTheme.secondaryText)
-                .frame(width: 72, height: 72)
-                .background(FaroTheme.secondaryText.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: FaroTheme.cornerRadius, style: .continuous))
-                .accessibilityLabel("Sin foto todavía")
+            NavigationLink(value: section) { button }
+                .buttonStyle(FaroCardButtonStyle())
         }
     }
 
@@ -290,6 +473,9 @@ struct CaseDashboardView: View {
             return "Cómo protege FARO tu información"
         case .settings:
             return "Demo, datos y opciones del caso"
+        case .chat:
+            let count = caseFile.sessions.count
+            return count == 0 ? "Registra datos conversando con la IA" : "\(count) sesión\(count == 1 ? "" : "es") previas"
         case .dashboard:
             return ""
         }

@@ -15,7 +15,7 @@ struct EvidenceCard: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
                 Image(systemName: evidence.kind.symbolName)
-                    .font(.body)
+                    .font(.system(size: 17)) // Tamaño fijo: el ícono decorativo no debe desbordar su recuadro con texto grande.
                     .foregroundStyle(FaroTheme.night)
                     .frame(width: 32, height: 32)
                     .background(FaroTheme.night.opacity(0.08))
@@ -43,6 +43,7 @@ struct EvidenceCard: View {
             HStack(spacing: 8) {
                 SensitivityBadge(level: evidence.sensitivity)
                 ValidationBadge(state: evidence.validationState)
+                ConfidenceBadge(level: evidence.kind.sourceConfidence)
                 if evidence.classificationSuggestedByAI {
                     AISuggestionBadge()
                 }

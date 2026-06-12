@@ -17,6 +17,14 @@ import SwiftUI
 @MainActor
 final class ChatIntakeViewModel {
 
+    /// Estado visible del autosave, para dar confianza de que nada se pierde.
+    enum SaveStatus: Equatable {
+        case idle
+        case saving
+        case saved
+        case failed
+    }
+
     // MARK: Estado
 
     private(set) var caseFile: CaseFile
@@ -34,11 +42,19 @@ final class ChatIntakeViewModel {
     /// Error de guardado, mostrado en lenguaje humano.
     var saveErrorMessage: String?
 
+    /// Estado del autosave para el indicador visible ("Guardando…/Guardado").
+    private(set) var saveStatus: SaveStatus = .idle
+    /// Oculta el "Guardado" tras un momento para que el indicador sea discreto.
+    private var saveStatusResetTask: Task<Void, Never>?
+
     /// Texto en edición cuando la persona toca "Editar" en una confirmación.
     var inputPrefill: String?
 
     /// Respuestas dadas desde la última repregunta (para espaciar repreguntas).
     private var answersSinceReask = 0
+
+    /// Campos donde un dato nuevo puede contradecir uno ya registrado.
+    private let conflictProneKeys: Set<String> = ["clothing", "lastSeenPlace", "physicalDescription"]
 
     var engineName: String { ai.engineName }
 
@@ -62,19 +78,42 @@ final class ChatIntakeViewModel {
         self.caseFile = resolvedCase
 
         // Sesión: retoma la última no completada o crea una nueva.
-        if let existing = resolvedCase.chatSessions
+        if let existing = resolvedCase.sessions
             .filter({ !$0.isCompleted })
             .sorted(by: { $0.updatedAt > $1.updatedAt }).first {
             self.session = existing
         } else {
             let newSession = ChatSession()
-            resolvedCase.chatSessions.append(newSession)
+            resolvedCase.sessions.append(newSession)
             self.session = newSession
         }
 
         ensureQuestionStates()
+        syncStatesFromExistingCase()
+        removeDuplicateAssistantMessages()
         persist()
         loadMessages()
+    }
+
+    /// Limpia duplicados de mensajes del asistente acumulados por sesiones
+    /// previas (resumen/pregunta repetidos). Conserva la primera aparición de
+    /// cada mensaje generado por el flujo; nunca toca mensajes del usuario ni
+    /// las tarjetas de confirmación.
+    private func removeDuplicateAssistantMessages() {
+        var seen = Set<String>()
+        var toDelete: [ChatMessage] = []
+        for message in session.sortedMessages where message.role == .assistant {
+            guard message.kind == .resumeSummary || message.kind == .question
+                    || message.kind == .normal || message.kind == .empathy else { continue }
+            let signature = "\(message.kindRaw)|\(message.questionKey ?? "")|\(message.text)"
+            if seen.contains(signature) {
+                toDelete.append(message)
+            } else {
+                seen.insert(signature)
+            }
+        }
+        guard !toDelete.isEmpty else { return }
+        for message in toDelete { context.delete(message) }
     }
 
     /// Garantiza que cada pregunta del banco tenga su IntakeQuestionRecord persistido.
@@ -82,6 +121,50 @@ final class ChatIntakeViewModel {
         let existingKeys = Set(caseFile.questionStates.map(\.questionKey))
         for question in IntakeQuestionBank.all where !existingKeys.contains(question.key) {
             caseFile.questionStates.append(IntakeQuestionRecord(questionKey: question.key))
+        }
+    }
+
+    /// Pre-marca como respondidas las preguntas cuyo dato ya existe en el caso
+    /// (p.ej. casos creados con Modo Crisis, el caso demo o casos importados).
+    private func syncStatesFromExistingCase() {
+        guard let person = caseFile.person else { return }
+
+        func mark(_ key: String, value: String) {
+            guard !value.isEmpty else { return }
+            updateState(for: key) { state in
+                guard state.status.isOpen else { return }
+                state.status = .answered
+                state.formalValue = value
+            }
+        }
+
+        mark("personName",        value: person.name)
+        mark("lastSeenPlace",     value: person.lastSeenPlace)
+        mark("clothing",          value: person.clothingDescription)
+        mark("physicalDescription", value: person.physicalDescription)
+        mark("medical",           value: person.medicalConditions)
+        mark("frequentPlaces",    value: person.frequentPlaces)
+        mark("companions",        value: person.possibleCompanions)
+
+        if let age = person.approximateAge {
+            mark("age", value: "\(age) años")
+        }
+        if let date = person.lastSeenAt {
+            let f = DateFormatter()
+            f.locale = Locale(identifier: "es_MX")
+            f.dateStyle = .medium
+            f.timeStyle = .short
+            mark("lastSeenTime", value: f.string(from: date))
+        }
+        if let hasPhone = person.carriedPhone {
+            mark("phone", value: hasPhone ? "Sí, llevaba celular" : "No llevaba celular")
+        }
+        if !caseFile.evidence.isEmpty {
+            mark("evidenceAvailable", value: "Sí")
+        }
+        if let contact = caseFile.contacts.first {
+            let contactStr = contact.phone.isEmpty ? contact.name : "\(contact.name) — \(contact.phone)"
+            mark("trustedContact", value: contactStr)
         }
     }
 
@@ -133,17 +216,43 @@ final class ChatIntakeViewModel {
             resumeIfNeeded()
             return
         }
-        appendAssistant(
-            "Estoy aquí para ayudarte a ordenar la información, paso a paso. Puedes saltar cualquier pregunta o responder \"no sé\": nada se pierde y todo se puede completar después.",
-            kind: .normal
-        )
+
+        let known = answeredCount
+        let remaining = openQuestions.count
+        let personName = caseFile.person?.name ?? ""
+
+        if known > 0 {
+            // El caso ya tiene datos (Modo Crisis, caso demo, importado…).
+            var greeting: String
+            if !personName.isEmpty {
+                greeting = "El expediente de **\(personName)** ya tiene \(known) dato\(known == 1 ? "" : "s") registrado\(known == 1 ? "" : "s")."
+            } else {
+                greeting = "Este expediente ya tiene \(known) dato\(known == 1 ? "" : "s") registrado\(known == 1 ? "" : "s")."
+            }
+            if remaining > 0 {
+                greeting += " Puedo ayudarte a completar lo que falta (\(remaining) campo\(remaining == 1 ? "" : "s")). Puedes saltar cualquier pregunta o responder \"no sé\" sin problema."
+            } else {
+                greeting += " El expediente está bastante completo. Puedes agregar detalles o correcciones cuando quieras."
+            }
+            appendAssistant(greeting, kind: .resumeSummary)
+        } else {
+            appendAssistant(
+                "Estoy aquí para ayudarte a ordenar la información, paso a paso. Puedes saltar cualquier pregunta o responder \"no sé\": nada se pierde y todo se puede completar después.",
+                kind: .normal
+            )
+        }
+
         askNextQuestion()
     }
 
     /// Al volver a una sesión existente: resume desde SwiftData, no de memoria.
     private func resumeIfNeeded() {
-        guard messages.last?.kind != .resumeSummary else { return }
         guard !session.isCompleted else { return }
+        // Si el asistente ya tiene la última palabra (pregunta, resumen o nota),
+        // no hay nada que reanudar: el usuario solo continúa. Esto evita que se
+        // dupliquen mensajes cada vez que se entra y sale del asistente
+        // (en iPad la vista se recrea al cambiar de sección).
+        if let last = messages.last, last.role == .assistant { return }
 
         let known = knownFieldLabels
         let pendingCount = openQuestions.count
@@ -168,6 +277,22 @@ final class ChatIntakeViewModel {
     func send(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isProcessing else { return }
+
+        // Intento de navegación: "volver a X" → saltar a esa pregunta directamente.
+        if let navKey = SpanishIntakeEngine.detectNavigationRequest(trimmed) {
+            appendUser(trimmed)
+            if navKey == "unknown" {
+                appendAssistant(
+                    "¿A qué campo quieres volver? Puedes decirme, por ejemplo, 'volver a ropa' o 'volver a nombre'.",
+                    kind: .normal
+                )
+            } else if let question = IntakeQuestionBank.question(for: navKey) {
+                reask(question)
+            } else {
+                appendAssistant("Entendido. ¿Puedes decirme exactamente qué dato quieres corregir?", kind: .normal)
+            }
+            return
+        }
 
         appendUser(trimmed)
         isProcessing = true
@@ -225,12 +350,87 @@ final class ChatIntakeViewModel {
                 advanceFlow()
                 return
             }
-            presentConfirmation(for: result.detectedFields, reply: result.assistantReply)
+            applyDirectly(fields: result.detectedFields, reply: result.assistantReply)
         }
         persist()
     }
 
-    // MARK: Microconfirmación humana
+    // MARK: Guardado directo (sin confirmación)
+
+    /// Aplica los campos detectados inmediatamente, sin paso de confirmación.
+    /// Datos con marcadores de incertidumbre ("creo", "tal vez"…) se guardan
+    /// como `.approximate` y se marcan para repregunta posterior.
+    private func applyDirectly(fields: [DetectedField], reply: String) {
+        appendAssistant(reply, kind: .normal)
+        var hasUncertain = false
+        for field in fields {
+            let conflicted = flagConflictIfNeeded(for: field)
+            apply(field: field, validation: field.suggestedValidation)
+            if conflicted {
+                // El conflicto manda: el dato queda por confirmar, no como hecho.
+                updateState(for: field.key) { $0.validation = .contradictory }
+            }
+            if field.suggestedValidation != .confirmed {
+                hasUncertain = true
+                updateState(for: field.key) { state in
+                    if state.status == .answered || state.status == .edited {
+                        state.status = .needsReask
+                    }
+                }
+            }
+        }
+        // Si hay datos inciertos, acercamos el umbral de repregunta para revisarlos pronto.
+        if hasUncertain { answersSinceReask = max(answersSinceReask, 2) }
+        answersSinceReask += 1
+        caseFile.promoteStatus(to: .inProgress)
+        caseFile.touch()
+        refreshDraftFicha()
+        advanceFlow()
+    }
+
+    // MARK: Detección de contradicciones (ropa, lugar, descripción)
+
+    /// Si un dato nuevo contradice uno ya registrado para el mismo campo,
+    /// no bloquea ni descarta: registra el nuevo, lo marca como contradictorio
+    /// y deja una pregunta pendiente para que la familia confirme cuál vale.
+    private func flagConflictIfNeeded(for field: DetectedField) -> Bool {
+        guard conflictProneKeys.contains(field.key),
+              let state = caseFile.questionStates.first(where: { $0.questionKey == field.key }),
+              !state.status.isOpen,
+              !state.formalValue.isEmpty,
+              let question = IntakeQuestionBank.question(for: field.key) else { return false }
+
+        let existingRaw = state.rawAnswer.isEmpty ? state.formalValue : state.rawAnswer
+        guard isMaterialConflict(existing: existingRaw, new: field.rawText) else { return false }
+
+        let label = question.formalLabel.lowercased()
+        let previousValue = state.formalValue
+        let conflictText = "Hay dos respuestas distintas para \(label): «\(previousValue)» y «\(field.formalValue)». ¿Cuál confirmas?"
+        let alreadyNoted = caseFile.questions.contains { $0.text == conflictText && $0.state == .pending }
+        if !alreadyNoted {
+            caseFile.questions.append(CaseQuestion(
+                text: conflictText,
+                whyItMatters: "Confirmar una sola versión evita difundir información incorrecta.",
+                suggestedAutomatically: true
+            ))
+        }
+        appendAssistant(
+            "Antes tenía registrado «\(previousValue)» para \(label). Anoté el dato nuevo y lo dejé por confirmar, para que elijas cuál es el correcto.",
+            kind: .normal
+        )
+        return true
+    }
+
+    /// Dos valores se contradicen si ninguno contiene al otro (no es un
+    /// detalle agregado ni una reformulación, sino una respuesta distinta).
+    private func isMaterialConflict(existing: String, new: String) -> Bool {
+        let a = existing.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let b = new.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !a.isEmpty, !b.isEmpty, a != b else { return false }
+        return !a.contains(b) && !b.contains(a)
+    }
+
+    // MARK: Microconfirmación humana (no usada en flujo normal — queda para uso futuro)
 
     /// Muestra los datos detectados para validación antes de integrarlos.
     private func presentConfirmation(for fields: [DetectedField], reply: String) {
@@ -414,7 +614,7 @@ final class ChatIntakeViewModel {
 
     private func reaskCandidate() -> (IntakeQuestion, IntakeQuestionRecord)? {
         openQuestions.first { question, state in
-            (state.status == .dontKnow || state.status == .skipped) && state.askCount <= 2
+            (state.status == .dontKnow || state.status == .skipped || state.status == .needsReask) && state.askCount <= 2
         }
     }
 
@@ -427,6 +627,7 @@ final class ChatIntakeViewModel {
             }
             var text = next.humanQuestion
             if let hint = next.hint { text += "\n\(hint)" }
+            if let rationale = next.rationale { text += "\n\(rationale)" }
             appendAssistant(text, kind: .question, questionKey: next.key)
         } else {
             finishBaseFlow()
@@ -543,11 +744,27 @@ final class ChatIntakeViewModel {
     }
 
     /// Autosave con mensaje humano si algo falla. Sin pérdidas silenciosas.
+    /// Refleja el estado en `saveStatus` para el indicador visible.
     func persist() {
+        saveStatus = .saving
         do {
             try context.save()
+            saveStatus = .saved
+            scheduleSaveStatusReset()
         } catch {
+            saveStatus = .failed
             saveErrorMessage = "No pudimos guardar este cambio. Intenta de nuevo antes de cerrar."
+        }
+    }
+
+    /// Vuelve a `.idle` tras unos segundos para no dejar el "Guardado" fijo.
+    /// El error sí permanece hasta el siguiente guardado correcto.
+    private func scheduleSaveStatusReset() {
+        saveStatusResetTask?.cancel()
+        saveStatusResetTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard let self, !Task.isCancelled, self.saveStatus == .saved else { return }
+            self.saveStatus = .idle
         }
     }
 }

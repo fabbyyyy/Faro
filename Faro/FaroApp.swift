@@ -25,7 +25,11 @@ struct FaroApp: App {
             CaseQuestion.self,
             LocationRecord.self,
             GeneratedReport.self,
-            PublicPoster.self
+            PublicPoster.self,
+            ChatSession.self,
+            ChatMessage.self,
+            IntakeQuestionRecord.self,
+            CaseFicha.self
         ])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

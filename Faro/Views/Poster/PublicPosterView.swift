@@ -8,6 +8,7 @@
 
 import SwiftUI
 import SwiftData
+import PhotosUI
 
 struct PublicPosterView: View {
     @Bindable var caseFile: CaseFile
@@ -19,6 +20,7 @@ struct PublicPosterView: View {
     @State private var generatingText = false
     @State private var pdfURL: URL?
     @State private var posterImage: UIImage?
+    @State private var posterPhotoItem: PhotosPickerItem?
 
     private var poster: PublicPoster? { caseFile.posters.first }
 
@@ -53,6 +55,9 @@ struct PublicPosterView: View {
         // Vista previa de la ficha
         PublicPosterPreview(caseFile: caseFile, poster: poster)
             .frame(maxWidth: .infinity)
+
+        // Edición de los campos visibles (sin tocar los datos del caso)
+        posterEditCard(poster)
 
         // Aprobación explícita de la familia
         approvalCard(poster)
@@ -95,6 +100,9 @@ struct PublicPosterView: View {
             .faroCard()
         }
 
+        // Contacto visible (editable por la familia)
+        contactCard(poster)
+
         // Texto corto para difusión
         shareTextCard(poster)
 
@@ -121,6 +129,113 @@ struct PublicPosterView: View {
         .faroCard()
     }
 
+    /// Edición de los campos visibles de la ficha. Cada campo vacío usa el
+    /// dato del expediente; lo que se escriba lo sobrescribe solo en la ficha.
+    private func posterEditCard(_ poster: PublicPoster) -> some View {
+        let person = caseFile.person
+        let baseZone = services.posterBuilder.generalZone(for: caseFile)
+        return VStack(alignment: .leading, spacing: 12) {
+            FaroSectionHeader(title: "Editar ficha",
+                              subtitle: "Ajusta lo que se muestra. Lo que dejes vacío usa el dato del caso.")
+
+            posterPhotoPicker(poster, person: person)
+
+            editField("Nombre visible",
+                      placeholder: person?.displayName ?? "Nombre",
+                      text: Binding(get: { poster.overrideName },
+                                    set: { poster.overrideName = $0 }))
+
+            editField("Edad",
+                      placeholder: person?.approximateAge.map { "\($0) años" } ?? "Edad",
+                      text: Binding(get: { poster.overrideAgeText },
+                                    set: { poster.overrideAgeText = $0 }))
+
+            editField("Zona general",
+                      placeholder: baseZone.isEmpty ? "Zona general" : baseZone,
+                      text: Binding(get: { poster.overrideZone },
+                                    set: { poster.overrideZone = $0 }))
+
+            editField("Señas / descripción",
+                      placeholder: person?.physicalDescription.isEmpty == false
+                          ? person!.physicalDescription : "Descripción visible",
+                      text: Binding(get: { poster.overrideDescription },
+                                    set: { poster.overrideDescription = $0 }),
+                      multiline: true)
+        }
+        .faroCard()
+    }
+
+    private func editField(_ label: String, placeholder: String,
+                           text: Binding<String>, multiline: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(FaroTheme.secondaryText)
+            TextField(placeholder, text: text, axis: multiline ? .vertical : .horizontal)
+                .lineLimit(multiline ? 2...4 : 1...1)
+                .padding(10)
+                .background(FaroTheme.background)
+                .clipShape(RoundedRectangle(cornerRadius: FaroTheme.smallCornerRadius, style: .continuous))
+                .accessibilityLabel("\(label), editable")
+        }
+    }
+
+    private func posterPhotoPicker(_ poster: PublicPoster, person: MissingPerson?) -> some View {
+        HStack(spacing: 12) {
+            if let data = poster.effectivePhoto(person), let image = UIImage(data: data) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 56, height: 56)
+                    .clipShape(RoundedRectangle(cornerRadius: FaroTheme.smallCornerRadius, style: .continuous))
+            } else {
+                RoundedRectangle(cornerRadius: FaroTheme.smallCornerRadius, style: .continuous)
+                    .fill(FaroTheme.secondaryText.opacity(0.10))
+                    .frame(width: 56, height: 56)
+                    .overlay(Image(systemName: "photo").foregroundStyle(FaroTheme.secondaryText))
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                PhotosPicker(selection: $posterPhotoItem, matching: .images) {
+                    Label(poster.overridePhotoData == nil ? "Usar otra foto" : "Cambiar foto",
+                          systemImage: "photo.on.rectangle")
+                }
+                .buttonStyle(FaroSecondaryButtonStyle(fullWidth: false))
+                if poster.overridePhotoData != nil {
+                    Button("Usar la foto del caso") { poster.overridePhotoData = nil }
+                        .font(.caption)
+                        .foregroundStyle(FaroTheme.secondaryText)
+                }
+            }
+            Spacer()
+        }
+        .onChange(of: posterPhotoItem) { _, item in
+            Task {
+                if let data = try? await item?.loadTransferable(type: Data.self) {
+                    await MainActor.run { poster.overridePhotoData = data }
+                }
+            }
+        }
+    }
+
+    /// Contacto visible en la ficha pública — editable por la familia.
+    private func contactCard(_ poster: PublicPoster) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            FaroSectionHeader(title: "Contacto visible",
+                              subtitle: "El número que aparece en la ficha. Tú decides cuál mostrar.")
+            TextField("Teléfono de contacto", text: Binding(
+                get: { poster.publicContact },
+                set: { poster.publicContact = $0 }
+            ))
+            .keyboardType(.phonePad)
+            .textContentType(.telephoneNumber)
+            .padding(12)
+            .background(FaroTheme.background)
+            .clipShape(RoundedRectangle(cornerRadius: FaroTheme.smallCornerRadius, style: .continuous))
+            .accessibilityLabel("Teléfono de contacto público, editable")
+        }
+        .faroCard()
+    }
+
     private func shareTextCard(_ poster: PublicPoster) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             FaroSectionHeader(title: "Texto para WhatsApp y redes",
@@ -142,13 +257,20 @@ struct PublicPosterView: View {
                         .foregroundStyle(FaroTheme.secondaryText)
                 }
             } else if !poster.shareText.isEmpty {
-                Text(poster.shareText)
-                    .font(.subheadline)
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(FaroTheme.background)
-                    .clipShape(RoundedRectangle(cornerRadius: FaroTheme.smallCornerRadius, style: .continuous))
-                    .textSelection(.enabled)
+                TextEditor(text: Binding(
+                    get: { poster.shareText },
+                    set: { poster.shareText = $0 }
+                ))
+                .font(.subheadline)
+                .frame(minHeight: 120)
+                .padding(8)
+                .background(FaroTheme.background)
+                .clipShape(RoundedRectangle(cornerRadius: FaroTheme.smallCornerRadius, style: .continuous))
+                .accessibilityLabel("Texto de difusión, editable")
+
+                Text("Puedes ajustar el texto antes de compartirlo.")
+                    .font(.caption2)
+                    .foregroundStyle(FaroTheme.secondaryText)
 
                 ShareLink(item: poster.shareText) {
                     Label("Compartir texto", systemImage: "square.and.arrow.up")
@@ -272,7 +394,7 @@ struct PublicPosterPreview: View {
                 .tracking(4)
                 .foregroundStyle(FaroTheme.night)
 
-            if let data = person?.photoData, let image = UIImage(data: data) {
+            if let data = poster.effectivePhoto(person), let image = UIImage(data: data) {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
@@ -281,11 +403,12 @@ struct PublicPosterPreview: View {
                     .accessibilityLabel("Foto de la persona")
             }
 
-            Text(person?.displayName ?? "")
+            Text(poster.effectiveName(person))
                 .font(.title.weight(.semibold))
 
-            if let age = person?.approximateAge {
-                Text("\(age) años")
+            let ageText = poster.effectiveAgeText(person)
+            if !ageText.isEmpty {
+                Text(ageText)
                     .font(.headline)
                     .foregroundStyle(FaroTheme.secondaryText)
             }
@@ -295,11 +418,13 @@ struct PublicPosterPreview: View {
                     posterRow("Última vez vista",
                               lastSeen.formatted(date: .long, time: .shortened))
                 }
-                let zone = AppServices.shared.posterBuilder.generalZone(for: caseFile)
+                let baseZone = AppServices.shared.posterBuilder.generalZone(for: caseFile)
+                let zone = poster.overrideZone.isEmpty ? baseZone : poster.overrideZone
                 if !zone.isEmpty {
                     posterRow("Zona", zone)
                 }
-                if let desc = person?.physicalDescription, !desc.isEmpty {
+                let desc = poster.effectiveDescription(person)
+                if !desc.isEmpty {
                     posterRow("Señas", desc)
                 }
                 if let clothing = person?.clothingDescription, !clothing.isEmpty {

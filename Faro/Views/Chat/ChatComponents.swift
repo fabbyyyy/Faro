@@ -95,11 +95,13 @@ struct QuickReplyChip: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
+            .frame(minHeight: 44) // Objetivo táctil accesible (mínimo 44 pt).
             .background(prominent ? AnyShapeStyle(FaroTheme.night) : AnyShapeStyle(FaroTheme.night.opacity(0.08)))
             .foregroundStyle(prominent
                              ? Color(light: .white, dark: Color(red: 0.07, green: 0.09, blue: 0.13))
                              : FaroTheme.night)
             .clipShape(Capsule())
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
     }

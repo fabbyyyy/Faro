@@ -62,6 +62,53 @@ struct PrivacyEthicsView: View {
                 .faroCard()
 
                 VStack(alignment: .leading, spacing: 8) {
+                    FaroSectionHeader(
+                        title: "Por qué esta tecnología",
+                        subtitle: "Una decisión de diseño, no un detalle técnico."
+                    )
+                    Text("FARO usa inteligencia artificial **en el dispositivo** porque los datos de una familia son sensibles y no deben viajar a servidores. Cuando el sistema lo permite, usamos los modelos locales de Apple (Foundation Models) para entender lenguaje en crisis y redactar con calma. Si no están disponibles, un **asistente local determinista** mantiene la app completa y funcional, incluso sin conexión. La interfaz siempre indica qué motor está activo.")
+                        .font(.subheadline)
+                        .foregroundStyle(FaroTheme.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("La extracción de datos es determinista a propósito: un modelo generativo puede sugerir y organizar, pero **no decide los hechos de un expediente**. Por eso todo lo que produce la IA entra como pendiente y requiere tu validación antes de tratarse como confirmado.")
+                        .font(.subheadline)
+                        .foregroundStyle(FaroTheme.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 2)
+                }
+                .faroCard()
+
+                NavigationLink {
+                    AIArchitectureView()
+                } label: {
+                    HStack(alignment: .top, spacing: 14) {
+                        Image(systemName: "cpu")
+                            .font(.title3)
+                            .foregroundStyle(FaroTheme.night)
+                            .frame(width: 34)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Arquitectura de IA")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.primary)
+                            Text("Cómo funciona la IA de FARO: qué decide un modelo y qué deciden reglas auditables.")
+                                .font(.subheadline)
+                                .foregroundStyle(FaroTheme.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 8)
+                        Image(systemName: "chevron.right")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(FaroTheme.secondaryText.opacity(0.5))
+                            .accessibilityHidden(true)
+                    }
+                    .faroCard()
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(FaroCardButtonStyle())
+                .accessibilityHint("Abre la explicación de la arquitectura de IA")
+
+                VStack(alignment: .leading, spacing: 8) {
                     FaroSectionHeader(title: "Uso responsable")
                     Text("No publiques rumores ni datos sin confirmar. No difundas información de testigos. Revisa cada documento antes de compartirlo. FARO te acompaña a hacerlo con cuidado, pero la decisión siempre es de la familia.")
                         .font(.subheadline)

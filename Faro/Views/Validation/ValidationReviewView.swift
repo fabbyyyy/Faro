@@ -127,6 +127,23 @@ struct ValidationReviewView: View {
             }
             .pickerStyle(.menu)
 
+            // Confianza por origen: se recalcula al cambiar el tipo arriba.
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(systemName: "dial.medium")
+                        .foregroundStyle(FaroTheme.secondaryText)
+                        .accessibilityHidden(true)
+                    Text("Confianza por origen: \(evidence.kind.sourceConfidence.displayName.lowercased())")
+                        .font(.caption.weight(.medium))
+                }
+                Text(evidence.kind.sourceConfidenceRationale)
+                    .font(.caption2)
+                    .foregroundStyle(FaroTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+
             HStack(spacing: 8) {
                 SensitivityBadge(level: evidence.sensitivity)
                 ValidationBadge(state: evidence.validationState)

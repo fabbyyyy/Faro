@@ -13,7 +13,7 @@ struct TrustContactCard: View {
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
             Image(systemName: contact.role.symbolName)
-                .font(.title3)
+                .font(.system(size: 20)) // Tamaño fijo: el ícono decorativo no debe desbordar su recuadro con texto grande.
                 .foregroundStyle(FaroTheme.night)
                 .frame(width: 40, height: 40)
                 .background(FaroTheme.night.opacity(0.08))

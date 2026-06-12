@@ -13,6 +13,7 @@ import SwiftData
 /// Secciones del expediente.
 enum CaseSection: String, CaseIterable, Identifiable {
     case dashboard
+    case chat
     case timeline
     case evidence
     case validation
@@ -29,6 +30,7 @@ enum CaseSection: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .dashboard:  return "Resumen del caso"
+        case .chat:       return "Asistente IA"
         case .timeline:   return "Línea de tiempo"
         case .evidence:   return "Evidencia"
         case .validation: return "Por revisar"
@@ -45,6 +47,7 @@ enum CaseSection: String, CaseIterable, Identifiable {
     var symbolName: String {
         switch self {
         case .dashboard:  return "rectangle.3.group"
+        case .chat:       return "bubble.left.and.text.bubble.right"
         case .timeline:   return "clock.arrow.circlepath"
         case .evidence:   return "tray.full"
         case .validation: return "checkmark.seal"
@@ -84,6 +87,7 @@ struct CaseContainerView: View {
                 }
 
                 Section("Expediente") {
+                    sidebarLabel(for: .chat)
                     sidebarLabel(for: .timeline)
                     sidebarLabel(for: .evidence)
                     sidebarLabel(for: .validation)
@@ -118,6 +122,20 @@ struct CaseContainerView: View {
         } detail: {
             NavigationStack {
                 sectionView(selectedSection ?? .dashboard)
+                    .toolbar {
+                        // En iPad el detalle no se apila: damos un regreso
+                        // explícito al resumen desde cualquier sección.
+                        if let section = selectedSection, section != .dashboard {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button {
+                                    selectedSection = .dashboard
+                                } label: {
+                                    Label("Resumen", systemImage: "chevron.backward")
+                                }
+                                .accessibilityLabel("Volver al resumen del caso")
+                            }
+                        }
+                    }
             }
         }
     }
@@ -156,6 +174,7 @@ struct CaseContainerView: View {
         switch section {
         case .dashboard:
             CaseDashboardView(caseFile: caseFile) { selectedSection = $0 }
+        case .chat:       ChatIntakeView(existingCase: caseFile, embedded: true)
         case .timeline:   TimelineView(caseFile: caseFile)
         case .evidence:   EvidenceVaultView(caseFile: caseFile)
         case .validation: ValidationCenterView(caseFile: caseFile)

@@ -99,9 +99,9 @@ struct TrainingPreparationService {
 
         return AnonymizedCaseSchema(
             fieldOutcomes: outcomes,
-            totalMessages: caseFile.chatSessions.reduce(0) { $0 + $1.messages.count },
+            totalMessages: caseFile.sessions.reduce(0) { $0 + $1.messages.count },
             unknownResponses: caseFile.questionStates.filter { $0.status == .dontKnow }.count,
-            sessionsToComplete: caseFile.chatSessions.count,
+            sessionsToComplete: caseFile.sessions.count,
             fichaVersionsGenerated: caseFile.fichas.filter { $0.status != .draft }.count,
             completenessPercent: AppServices.shared.scoring.evaluate(caseFile).completenessPercent
         )

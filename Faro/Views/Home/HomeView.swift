@@ -35,11 +35,12 @@ struct HomeView: View {
             withAnimation { appeared = true }
         }
         .sheet(isPresented: $showingEthicsNotice) {
-            EthicsNoticeView {
+            EthicsNoticeView { mode in
                 showingEthicsNotice = false
+                router.intakeMode = mode
                 router.showingCrisisFlow = true
             }
-            .presentationDetents([.medium, .large])
+            .presentationDetents([.large])
             .presentationCornerRadius(28)
         }
     }
@@ -137,7 +138,8 @@ struct HomeView: View {
 // MARK: - Advertencia ética previa a crear caso
 
 struct EthicsNoticeView: View {
-    let onContinue: () -> Void
+    /// Recibe el modo de alta elegido por la familia.
+    let onContinue: (AppRouter.IntakeMode) -> Void
     @State private var appeared = false
 
     private let rows: [(symbol: String, text: String)] = [
@@ -164,16 +166,31 @@ struct EthicsNoticeView: View {
 
             Spacer()
 
-            Button("Entendido, crear caso", action: onContinue)
-                .buttonStyle(FaroPrimaryButtonStyle())
-                .faroEntrance(visible: appeared, delay: 0.32)
+            Text("¿Cómo prefieres empezar?")
+                .font(.subheadline.weight(.medium))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .faroEntrance(visible: appeared, delay: 0.30)
 
-            Text("Vamos paso a paso. Puedes saltar cualquier pregunta.")
+            Button { onContinue(.conversational) } label: {
+                Label("Conversar con el asistente", systemImage: "bubble.left.and.text.bubble.right")
+            }
+            .buttonStyle(FaroPrimaryButtonStyle())
+            .accessibilityHint("Respondes con tus palabras y el asistente organiza la información")
+            .faroEntrance(visible: appeared, delay: 0.33)
+
+            Button { onContinue(.guided) } label: {
+                Label("Ir paso a paso", systemImage: "list.number")
+            }
+            .buttonStyle(FaroSecondaryButtonStyle())
+            .accessibilityHint("Una pregunta corta a la vez, más sencillo bajo estrés")
+            .faroEntrance(visible: appeared, delay: 0.36)
+
+            Text("Como te sea más cómodo. Puedes saltar cualquier pregunta.")
                 .font(.footnote)
                 .foregroundStyle(FaroTheme.secondaryText)
                 .frame(maxWidth: .infinity)
                 .padding(.bottom, 14)
-                .faroEntrance(visible: appeared, delay: 0.36)
+                .faroEntrance(visible: appeared, delay: 0.39)
         }
         .padding(.horizontal, FaroTheme.screenPadding)
         .background(FaroTheme.background)

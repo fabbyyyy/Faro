@@ -173,10 +173,10 @@ enum SpanishIntakeEngine {
 
     /// Confianza y validación sugerida según cómo se expresó la persona.
     static func assessConfidence(of text: String) -> (ConfidenceLevel, ValidationState) {
-        if contains(text, anyOf: thirdPartyMarkers) { return (.low, .pending) }
-        if contains(text, anyOf: uncertaintyMarkers) { return (.medium, .approximate) }
-        if contains(text, anyOf: certaintyMarkers) { return (.high, .approximate) }
-        return (.medium, .approximate) // Aun lo dicho con seguridad se valida.
+        if contains(text, anyOf: thirdPartyMarkers)  { return (.low,    .pending)   }
+        if contains(text, anyOf: uncertaintyMarkers)  { return (.medium,  .approximate) }
+        if contains(text, anyOf: certaintyMarkers)    { return (.high,    .confirmed) }
+        return (.high, .confirmed) // Sin marcadores de duda → dato directo.
     }
 
     // MARK: Extracción de campos
@@ -187,6 +187,7 @@ enum SpanishIntakeEngine {
     static func extractFields(from text: String, activeQuestion: IntakeQuestion?) -> [DetectedField] {
         var fields: [DetectedField] = []
         let (confidence, validation) = assessConfidence(of: text)
+        let lower = text.lowercased()
 
         func add(_ key: String, _ value: String) {
             guard let question = IntakeQuestionBank.question(for: key),
@@ -202,7 +203,7 @@ enum SpanishIntakeEngine {
             ))
         }
 
-        // Nombre: "se llama X", "su nombre es X", "es X"
+        // Nombre: "se llama X", "su nombre es X", "mi hijo X"
         if let name = firstMatch(in: text, pattern: #"(?:se llama|su nombre es|mi hij[ao])\s+([A-ZÁÉÍÓÚÑ][\wáéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)?)"#) {
             add("personName", name)
         }
@@ -231,7 +232,6 @@ enum SpanishIntakeEngine {
 
         // Ropa
         if contains(text, anyOf: clothingKeywords) {
-            // Toma la parte de la frase que menciona ropa.
             if let clothing = firstMatch(in: text, pattern: #"((?:llevaba|traía|traia|vestía|vestia|con)\s+[\wáéíóúñ,\s]{4,80})"#, group: 1) {
                 add("clothing", clothing)
             } else {
@@ -239,19 +239,95 @@ enum SpanishIntakeEngine {
             }
         }
 
+        // Atributos físicos: estatura, cabello, tez — se agrupan en un solo campo.
+        var physicalParts: [String] = []
+
+        // Estatura: número de 3 cifras en rango realista (140–220)
+        if let h = firstMatch(in: lower, pattern: #"\b(1[4-9]\d|2[0-2]\d)\s*(?:cm|metros?)?\b"#, group: 1) {
+            physicalParts.append("Estatura \(h) cm")
+        }
+
+        // Color / tipo de cabello
+        let hairColors = "negro|castaño|rubio|pelirrojx|rojo|blanco|canoso|teñido|corto|largo|chino|lacio|ondulado|rizado"
+        if let hair = firstMatch(in: lower, pattern: "(?:cabello|pelo)\\s+(\(hairColors))", group: 1) {
+            physicalParts.append("Cabello \(hair)")
+        } else if lower.contains("cabello") || lower.contains("pelo") {
+            // "cabello negro" puede aparecer sin el verbo antes
+            let colorWords = "negro|castaño|rubio|rojo|blanco|canoso"
+            if let col = firstMatch(in: lower, pattern: "\\b(\(colorWords))\\b", group: 1) {
+                physicalParts.append("Cabello \(col)")
+            }
+        }
+
+        // Complexión / tono de piel — solo con contexto físico para evitar falsos positivos
+        let isPhysicalContext = !physicalParts.isEmpty || activeQuestion?.key == "physicalDescription"
+        if isPhysicalContext,
+           let complexion = firstMatch(in: lower, pattern: #"\b(blanca?|morena?|trigueña?o?|clara?)\b"#, group: 1) {
+            physicalParts.append("Tez \(complexion)")
+        }
+
+        if !physicalParts.isEmpty {
+            add("physicalDescription", physicalParts.joined(separator: ". "))
+        }
+
         // Teléfono / dispositivos
-        if activeQuestion?.key == "phone" || text.lowercased().contains("celular") || text.lowercased().contains("teléfono") || text.lowercased().contains("telefono") {
+        if activeQuestion?.key == "phone" || lower.contains("celular") || lower.contains("teléfono") || lower.contains("telefono") {
             if activeQuestion?.key == "phone" || fields.isEmpty {
                 add("phone", text)
             }
         }
 
-        // Si nada específico se detectó, el texto responde a la pregunta activa.
+        // Si nada específico se detectó, el texto completo responde a la pregunta activa.
         if fields.isEmpty, let activeQuestion, classify(text) == .informative {
             add(activeQuestion.key, text)
         }
 
         return fields
+    }
+
+    // MARK: Detección de intento de navegación
+
+    /// Devuelve la clave del campo al que el usuario quiere volver,
+    /// o "unknown" si detectó la intención pero no el destino.
+    /// Devuelve nil si el mensaje NO es un intento de navegación.
+    static func detectNavigationRequest(_ text: String) -> String? {
+        let lower = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let triggers = ["volver a", "regresa a", "regresar a", "regresame a",
+                        "ir a", "corregir", "corrige", "editar", "actualizar",
+                        "cambiar", "cambia", "modificar", "modifica"]
+        guard triggers.contains(where: { lower.hasPrefix($0) || lower.contains(" \($0) ") || lower.contains("\($0) ") }) else { return nil }
+
+        let keyMap: [(String, String)] = [
+            ("nombre",        "personName"),
+            ("edad",          "age"),
+            ("cabello",       "physicalDescription"),
+            ("pelo",          "physicalDescription"),
+            ("estatura",      "physicalDescription"),
+            ("físico",        "physicalDescription"),
+            ("tez",           "physicalDescription"),
+            ("señas",         "physicalDescription"),
+            ("descripción",   "physicalDescription"),
+            ("ropa",          "clothing"),
+            ("vestimenta",    "clothing"),
+            ("hora",          "lastSeenTime"),
+            ("cuándo",        "lastSeenTime"),
+            ("cuando",        "lastSeenTime"),
+            ("lugar",         "lastSeenPlace"),
+            ("dónde",         "lastSeenPlace"),
+            ("donde",         "lastSeenPlace"),
+            ("médic",         "medical"),
+            ("salud",         "medical"),
+            ("celular",       "phone"),
+            ("teléfono",      "phone"),
+            ("telefono",      "phone"),
+            ("contacto",      "trustedContact"),
+            ("familiar",      "trustedContact"),
+            ("acompañante",   "companions"),
+            ("compañero",     "companions"),
+            ("frecuente",     "frequentPlaces"),
+        ]
+        for (keyword, key) in keyMap where lower.contains(keyword) { return key }
+        return "unknown"
     }
 
     static func firstMatch(in text: String, pattern: String, group: Int = 1) -> String? {
@@ -348,7 +424,8 @@ enum SpanishIntakeEngine {
     // MARK: Respuestas empáticas (sobrias, sin promesas)
 
     static func empatheticReply(for classification: UserReplyClassification,
-                                fieldCount: Int) -> String {
+                                fieldCount: Int,
+                                isApproximate: Bool = false) -> String {
         switch classification {
         case .unknown:
             return "Está bien, no necesitas saberlo todo ahora. Lo dejamos pendiente y podemos volver a esto más adelante."
@@ -359,10 +436,10 @@ enum SpanishIntakeEngine {
         case .smalltalk:
             return "Aquí estoy. Cuando quieras seguimos con la siguiente pregunta."
         case .informative:
-            if fieldCount > 1 {
-                return "Gracias, esto ayuda a ordenar la información. Detecté varios datos; revísalos antes de que los guarde."
+            if isApproximate {
+                return "Lo anoté como dato pendiente de verificación. Lo retomamos más adelante para confirmarlo."
             }
-            return "Gracias. Te propongo guardarlo así; tú confirmas si es correcto."
+            return fieldCount > 1 ? "Guardados \(fieldCount) datos." : "Guardado."
         }
     }
 }
@@ -384,12 +461,15 @@ struct MockChatAIService: CaseAIServiceProtocol {
         let fields = classification == .informative
             ? SpanishIntakeEngine.extractFields(from: message, activeQuestion: activeQuestion)
             : []
+        let isApproximate = fields.contains { $0.suggestedValidation != .confirmed }
 
         return IntakeProcessingResult(
-            assistantReply: SpanishIntakeEngine.empatheticReply(for: classification, fieldCount: fields.count),
+            assistantReply: SpanishIntakeEngine.empatheticReply(for: classification,
+                                                                fieldCount: fields.count,
+                                                                isApproximate: isApproximate),
             detectedFields: fields,
             classification: classification,
-            requiresHumanConfirmation: !fields.isEmpty,
+            requiresHumanConfirmation: false,
             suggestedNextQuestionKey: nil
         )
     }
