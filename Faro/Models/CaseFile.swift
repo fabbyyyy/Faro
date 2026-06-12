@@ -16,6 +16,11 @@ final class CaseFile {
     var title: String = ""
     var createdAt: Date = Date.now
     var updatedAt: Date = Date.now
+    var statusRaw: String = CaseStatus.draft.rawValue
+
+    /// Contador que sube cada vez que cambia un dato del caso.
+    /// Las fichas guardan su valor al generarse para detectar si quedaron desactualizadas.
+    var dataRevision: Int = 0
 
     /// Marca el caso precargado de demostración (datos ficticios).
     var isDemo: Bool = false
@@ -52,6 +57,15 @@ final class CaseFile {
     @Relationship(deleteRule: .cascade, inverse: \PublicPoster.caseFile)
     var posters: [PublicPoster] = []
 
+    @Relationship(deleteRule: .cascade, inverse: \IntakeQuestionRecord.caseFile)
+    var questionStates: [IntakeQuestionRecord] = []
+
+    @Relationship(deleteRule: .cascade, inverse: \CaseFicha.caseFile)
+    var fichas: [CaseFicha] = []
+
+    @Relationship(deleteRule: .cascade, inverse: \ChatSession.caseFile)
+    var sessions: [ChatSession] = []
+
     init(title: String, isDemo: Bool = false) {
         self.id = UUID()
         self.title = title
@@ -60,9 +74,28 @@ final class CaseFile {
         self.updatedAt = .now
     }
 
-    /// Registrar actividad: mantiene visible "última actualización" en el dashboard.
+    var status: CaseStatus {
+        get { CaseStatus(rawValue: statusRaw) ?? .draft }
+        set { statusRaw = newValue.rawValue }
+    }
+
+    /// Incrementa la revisión del caso y actualiza la marca temporal.
+    /// Las fichas generadas anteriormente quedan marcadas como desactualizadas.
     func touch() {
+        dataRevision += 1
         updatedAt = .now
+    }
+
+    /// Actualiza solo la marca temporal sin cambiar dataRevision.
+    /// Usar cuando se genera o actualiza un documento sin que los datos del caso cambien.
+    func touchDocumentsOnly() {
+        updatedAt = .now
+    }
+
+    /// Avanza el estado del caso sin retroceder.
+    func promoteStatus(to newStatus: CaseStatus) {
+        guard newStatus.rank > status.rank else { return }
+        status = newStatus
     }
 
     // MARK: Conveniencias de lectura

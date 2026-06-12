@@ -264,6 +264,34 @@ enum TaskState: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// Estado global del expediente.
+enum CaseStatus: String, Codable, CaseIterable, Identifiable {
+    case draft           // Recién creado, sin datos ingresados
+    case inProgress      // Datos en proceso de recopilación
+    case fichaGenerated  // Ficha técnica generada
+    case reportReady     // Reporte formal listo para presentar
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .draft:          return "Borrador"
+        case .inProgress:     return "En proceso"
+        case .fichaGenerated: return "Ficha generada"
+        case .reportReady:    return "Reporte listo"
+        }
+    }
+
+    var rank: Int {
+        switch self {
+        case .draft:          return 0
+        case .inProgress:     return 1
+        case .fichaGenerated: return 2
+        case .reportReady:    return 3
+        }
+    }
+}
+
 /// Estado de una pregunta crítica.
 enum QuestionState: String, Codable, CaseIterable, Identifiable {
     case pending
