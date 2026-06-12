@@ -16,9 +16,8 @@ struct HomeView: View {
     @Query(sort: \CaseFile.updatedAt, order: .reverse) private var cases: [CaseFile]
 
     @State private var showingEthicsNotice = false
+    @State private var showingMyCases = false
     @State private var appeared = false
-
-    private var existingRealCases: [CaseFile] { cases.filter { !$0.isDemo } }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -50,6 +49,11 @@ struct HomeView: View {
         }
         .onAppear {
             withAnimation { appeared = true }
+        }
+        .sheet(isPresented: $showingMyCases) {
+            MyCasesGridView(cases: Array(cases)) { caseFile in
+                router.activeCase = caseFile
+            }
         }
         .sheet(isPresented: $showingEthicsNotice) {
             EthicsNoticeView { mode in
@@ -102,24 +106,15 @@ struct HomeView: View {
             .accessibilityHint("Inicia el registro guiado de un nuevo caso")
             .faroEntrance(visible: appeared, delay: 0.18)
 
-            Button {
-                openDemoCase()
-            } label: {
-                Label("Abrir caso demo", systemImage: "sparkles.rectangle.stack")
-            }
-            .buttonStyle(HomeGlassActionButtonStyle())
-            .accessibilityHint("Abre un expediente de ejemplo con datos ficticios")
-            .faroEntrance(visible: appeared, delay: 0.22)
-
-            if let latest = existingRealCases.first {
+            if !cases.isEmpty {
                 Button {
-                    router.activeCase = latest
+                    showingMyCases = true
                 } label: {
-                    Label("Continuar caso", systemImage: "arrow.right.circle")
+                    Label("Mis casos", systemImage: "rectangle.grid.2x2")
                 }
                 .buttonStyle(HomeGlassActionButtonStyle())
-                .accessibilityHint("Continúa con \(latest.title)")
-                .faroEntrance(visible: appeared, delay: 0.26)
+                .accessibilityHint("Muestra tus casos para continuar con uno")
+                .faroEntrance(visible: appeared, delay: 0.22)
             }
         }
         .padding(.horizontal, FaroTheme.screenPadding)
@@ -134,14 +129,88 @@ struct HomeView: View {
             .faroEntrance(visible: appeared, delay: 0.28)
     }
 
-    private func openDemoCase() {
-        if let demo = cases.first(where: { $0.isDemo }) {
-            router.activeCase = demo
-        } else {
-            let demo = DemoCaseFactory.makeDemoCase(in: modelContext)
-            try? modelContext.save()
-            router.activeCase = demo
+}
+
+// MARK: - Mis casos: cuadrícula con foto y nombre
+
+struct MyCasesGridView: View {
+    let cases: [CaseFile]
+    let onOpen: (CaseFile) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 12),
+                                    GridItem(.flexible(), spacing: 12)],
+                          spacing: 12) {
+                    ForEach(cases) { caseFile in
+                        Button {
+                            dismiss()
+                            onOpen(caseFile)
+                        } label: {
+                            caseTile(caseFile)
+                        }
+                        .buttonStyle(FaroCardButtonStyle())
+                    }
+                }
+                .padding(FaroTheme.screenPadding)
+            }
+            .background(FaroTheme.background)
+            .navigationTitle("Mis casos")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Listo") { dismiss() }
+                }
+            }
         }
+    }
+
+    private func caseTile(_ caseFile: CaseFile) -> some View {
+        let name = caseFile.person?.displayName ?? caseFile.title
+        return ZStack(alignment: .bottomLeading) {
+            // Fondo: la foto de la persona si existe; si no, azul noche suave.
+            if let data = caseFile.person?.photoData, let image = UIImage(data: data) {
+                Color.clear
+                    .overlay(
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                    )
+                    .clipped()
+                // Velo para que el nombre siempre se lea.
+                LinearGradient(colors: [.clear, .black.opacity(0.65)],
+                               startPoint: .center, endPoint: .bottom)
+            } else {
+                FaroTheme.night.opacity(0.10)
+                Image(systemName: "person.crop.rectangle")
+                    .font(.system(size: 34, weight: .light))
+                    .foregroundStyle(FaroTheme.night.opacity(0.4))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(caseFile.person?.photoData != nil ? .white : FaroTheme.night)
+                    .lineLimit(2)
+                Text("Actualizado \(caseFile.updatedAt.formatted(date: .abbreviated, time: .omitted))")
+                    .font(.caption2)
+                    .foregroundStyle(caseFile.person?.photoData != nil
+                                     ? .white.opacity(0.8)
+                                     : FaroTheme.secondaryText)
+            }
+            .padding(12)
+        }
+        .frame(height: 170)
+        .frame(maxWidth: .infinity)
+        .clipShape(RoundedRectangle(cornerRadius: FaroTheme.cornerRadius, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: FaroTheme.cornerRadius, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Caso de \(name)")
+        .accessibilityHint("Abre este caso")
     }
 }
 

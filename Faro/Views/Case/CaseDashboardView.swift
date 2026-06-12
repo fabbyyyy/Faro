@@ -222,15 +222,6 @@ struct CaseDashboardView: View {
                 Text("Última actualización: \(caseFile.updatedAt.formatted(date: .abbreviated, time: .shortened))")
                     .font(.caption)
                     .foregroundStyle(FaroTheme.secondaryText)
-                if caseFile.isDemo {
-                    Text("Caso demo · datos ficticios")
-                        .font(.caption.weight(.medium))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(FaroTheme.amber.opacity(0.15))
-                        .foregroundStyle(FaroTheme.amber)
-                        .clipShape(Capsule())
-                }
             }
             Spacer()
         }
