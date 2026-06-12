@@ -21,13 +21,13 @@ struct CaseDashboardView: View {
     @State private var appeared = false
     @State private var skeletonPulsing = false
     @State private var showingMissingInfo = false
+    @State private var showingPrivacy = false
     @State private var selectedPhoto: PhotosPickerItem?
 
     private var rules: [CompletenessRule] { services.scoring.evaluate(caseFile) }
 
     // Agrupación semántica de secciones
     private let coreSections:  [CaseSection] = [.timeline, .evidence, .validation]
-    private let systemSections:[CaseSection] = [.privacy, .settings]
 
     var body: some View {
         ScrollView {
@@ -64,12 +64,8 @@ struct CaseDashboardView: View {
                     startDelay: 0.32
                 )
 
-                sectionGroup(
-                    title: "Sistema",
-                    subtitle: nil,
-                    sections: systemSections,
-                    startDelay: 0.38
-                )
+                privacyFooter
+                    .faroEntrance(visible: appeared, delay: 0.38)
             }
             .padding(FaroTheme.screenPadding)
             .frame(maxWidth: 700)
@@ -86,6 +82,16 @@ struct CaseDashboardView: View {
         .sheet(isPresented: $showingMissingInfo) {
             missingInfoSheet
                 .presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $showingPrivacy) {
+            NavigationStack {
+                PrivacyEthicsView()
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Listo") { showingPrivacy = false }
+                        }
+                    }
+            }
         }
         .onAppear { withAnimation { appeared = true } }
         .onChange(of: selectedPhoto) { _, item in
@@ -397,6 +403,22 @@ struct CaseDashboardView: View {
         .onAppear { skeletonPulsing = true }
         .accessibilityLabel("Preparando resumen del expediente")
         .transition(.opacity)
+    }
+
+    /// Acceso discreto a privacidad y ética, al final de la página.
+    private var privacyFooter: some View {
+        Button {
+            showingPrivacy = true
+        } label: {
+            Text("Cómo protege FARO tu información")
+                .font(.footnote)
+                .foregroundStyle(FaroTheme.secondaryText)
+                .underline()
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
+        .padding(.top, 8)
+        .accessibilityHint("Abre la información de privacidad y ética")
     }
 
     // MARK: - Grupos de secciones
