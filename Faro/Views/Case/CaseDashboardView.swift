@@ -19,6 +19,7 @@ struct CaseDashboardView: View {
     private let services = AppServices.shared
     @State private var aiSummary: String?
     @State private var appeared = false
+    @State private var skeletonPulsing = false
     @State private var selectedPhoto: PhotosPickerItem?
 
     private var rules: [CompletenessRule] { services.scoring.evaluate(caseFile) }
@@ -32,6 +33,9 @@ struct CaseDashboardView: View {
             VStack(spacing: FaroTheme.sectionSpacing) {
                 personHeader
                     .faroEntrance(visible: appeared, delay: 0.0)
+
+                aiSummarySection
+                    .faroEntrance(visible: appeared, delay: 0.02)
 
                 // Siguiente paso recomendado: una sola acción clara, siempre
                 // visible. En crisis, la app decide qué sigue, no la familia.
@@ -52,9 +56,6 @@ struct CaseDashboardView: View {
                     missingInfoSection
                         .faroEntrance(visible: appeared, delay: 0.12)
                 }
-
-                aiSummaryCard
-                    .faroEntrance(visible: appeared, delay: 0.14)
 
                 sectionGroup(
                     title: "Expediente",
@@ -383,33 +384,44 @@ struct CaseDashboardView: View {
 
     // MARK: - Resumen de IA (siempre marcado como sugerencia)
 
-    private var aiSummaryCard: some View {
+    /// Resumen generado automáticamente al abrir el caso.
+    /// Texto directo sobre el fondo, sin tarjeta.
+    private var aiSummarySection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                FaroSectionHeader(title: "Resumen del expediente")
-                Spacer()
-            }
             if let aiSummary {
                 Text(aiSummary)
                     .font(.subheadline)
+                    .foregroundStyle(FaroTheme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
-                AISuggestionBadge()
-                Text("Motor: \(services.ai.engineName)")
-                    .font(.caption2)
-                    .foregroundStyle(FaroTheme.secondaryText)
             } else {
-                Button {
-                    Task { aiSummary = await services.ai.summarizeCase(caseFile) }
-                } label: {
-                    Label("Generar resumen con IA local", systemImage: "sparkles")
-                }
-                .buttonStyle(FaroSecondaryButtonStyle(fullWidth: false))
-                Text("El resumen se genera en el dispositivo y es solo una ayuda de lectura.")
-                    .font(.caption)
-                    .foregroundStyle(FaroTheme.secondaryText)
+                summarySkeleton
             }
         }
-        .faroCard()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .animation(FaroTheme.springSmooth, value: aiSummary == nil)
+        .task {
+            guard aiSummary == nil else { return }
+            aiSummary = await services.ai.summarizeCase(caseFile)
+        }
+    }
+
+    /// Skeleton de carga: líneas que imitan el párrafo del resumen,
+    /// con un pulso suave mientras la IA local lo redacta.
+    private var summarySkeleton: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(0..<3, id: \.self) { index in
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(FaroTheme.secondaryText.opacity(0.15))
+                    .frame(height: 13)
+                    .frame(maxWidth: index == 2 ? 180 : .infinity, alignment: .leading)
+            }
+        }
+        .opacity(skeletonPulsing ? 0.45 : 1)
+        .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true),
+                   value: skeletonPulsing)
+        .onAppear { skeletonPulsing = true }
+        .accessibilityLabel("Preparando resumen del expediente")
+        .transition(.opacity)
     }
 
     // MARK: - Grupos de secciones

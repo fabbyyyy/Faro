@@ -100,12 +100,19 @@ struct FoundationModelsAIService: AIProcessingServiceProtocol {
         do {
             let session = LanguageModelSession(instructions: Self.instructions)
             let prompt = """
-            Reescribe este resumen de expediente en 3 frases claras y sobrias, \
-            sin agregar información nueva:
-            \(facts)
+            Reescribe estos datos de un expediente como un párrafo breve en \
+            prosa natural y humana, como si se lo contaras con calma a un \
+            familiar. Reglas estrictas:
+            - Un solo párrafo corrido, sin listas, sin números, sin viñetas, \
+            sin encabezados.
+            - Tono cálido pero sobrio; no dramatices ni minimices.
+            - No agregues información nueva ni afirmes nada como confirmado.
+            - Máximo 4 oraciones.
+
+            Datos: \(facts)
             """
             let response = try await session.respond(to: prompt)
-            let text = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            let text = Self.flattenToParagraph(response.content)
             return text.isEmpty ? facts : text
         } catch {
             return facts
@@ -120,6 +127,26 @@ struct FoundationModelsAIService: AIProcessingServiceProtocol {
         await fallback.draftShareText(personName: personName, age: age, zone: zone,
                                       date: date, clothing: clothing, contact: contact,
                                       tone: tone)
+    }
+
+    /// Si el modelo devuelve listas o viñetas a pesar del prompt,
+    /// las aplana a un párrafo corrido.
+    private static func flattenToParagraph(_ raw: String) -> String {
+        let lines = raw
+            .components(separatedBy: .newlines)
+            .map { line -> String in
+                var cleaned = line.trimmingCharacters(in: .whitespaces)
+                // Quita prefijos tipo "1.", "2)", "-", "•", "*"
+                while let first = cleaned.first,
+                      first.isNumber || "-•*.)".contains(first) {
+                    cleaned.removeFirst()
+                    cleaned = cleaned.trimmingCharacters(in: .whitespaces)
+                }
+                return cleaned
+            }
+            .filter { !$0.isEmpty }
+        return lines.joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     // MARK: Parsing

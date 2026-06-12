@@ -20,17 +20,17 @@ enum FaroTheme {
     static let night = Color(light: Color(red: 0.10, green: 0.16, blue: 0.28),
                              dark: Color(red: 0.62, green: 0.72, blue: 0.88))
 
-    /// Fondo blanco cálido (no blanco clínico).
-    static let background = Color(light: Color(red: 0.98, green: 0.97, blue: 0.95),
-                                  dark: Color(red: 0.07, green: 0.09, blue: 0.13))
+    /// Fondo: off-white con un velo azul en claro; azul casi negro (#0B131F) en oscuro.
+    static let background = Color(light: Color(red: 0.96, green: 0.97, blue: 0.99),
+                                  dark: Color(red: 0.043, green: 0.075, blue: 0.122))
 
-    /// Superficie de tarjetas.
+    /// Superficie de tarjetas: blanco puro en claro; azul del icono (#152238) en oscuro.
     static let surface = Color(light: .white,
-                               dark: Color(red: 0.12, green: 0.15, blue: 0.20))
+                               dark: Color(red: 0.082, green: 0.133, blue: 0.220))
 
-    /// Gris suave para texto secundario.
-    static let secondaryText = Color(light: Color(red: 0.42, green: 0.45, blue: 0.50),
-                                     dark: Color(red: 0.68, green: 0.71, blue: 0.76))
+    /// Gris medio (#6C757D) para texto secundario; gris claro en oscuro.
+    static let secondaryText = Color(light: Color(red: 0.424, green: 0.459, blue: 0.490),
+                                     dark: Color(red: 0.78, green: 0.80, blue: 0.84))
 
     /// Ámbar: atención, pendientes, datos por revisar. No es alarma.
     static let amber = Color(light: Color(red: 0.80, green: 0.55, blue: 0.13),
@@ -155,7 +155,7 @@ struct FaroPrimaryButtonStyle: ButtonStyle {
             .padding(.vertical, 16)
             .padding(.horizontal, 20)
             .background(FaroTheme.night.opacity(configuration.isPressed ? 0.82 : 1))
-            .foregroundStyle(Color(light: .white, dark: Color(red: 0.07, green: 0.09, blue: 0.13)))
+            .foregroundStyle(Color(light: .white, dark: Color(red: 0.043, green: 0.075, blue: 0.122)))
             .clipShape(RoundedRectangle(cornerRadius: FaroTheme.cornerRadius, style: .continuous))
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .animation(FaroTheme.springSnappy, value: configuration.isPressed)
