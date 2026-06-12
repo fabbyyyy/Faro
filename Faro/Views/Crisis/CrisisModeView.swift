@@ -17,6 +17,14 @@ struct CrisisModeView: View {
 
     @State private var viewModel = CrisisFlowViewModel()
     @State private var selectedPhoto: PhotosPickerItem?
+    @State private var goingForward = true
+
+    private var stepTransition: AnyTransition {
+        .asymmetric(
+            insertion: .move(edge: goingForward ? .trailing : .leading).combined(with: .opacity),
+            removal:   .move(edge: goingForward ? .leading  : .trailing).combined(with: .opacity)
+        )
+    }
 
     var body: some View {
         NavigationStack {
@@ -36,11 +44,16 @@ struct CrisisModeView: View {
                 case .trustedContact: trustedContactStep
                 }
             }
+            .id(viewModel.stepNumber)
+            .transition(stepTransition)
             .background(FaroTheme.background)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     if viewModel.currentStep != .name {
-                        Button("Atrás") { withAnimation { viewModel.goBack() } }
+                        Button("Atrás") {
+                            goingForward = false
+                            withAnimation(FaroTheme.springSmooth) { viewModel.goBack() }
+                        }
                     } else {
                         Button("Cancelar") { dismiss() }
                     }
@@ -231,7 +244,10 @@ struct CrisisModeView: View {
     ) -> some View {
         let dontKnowAction: (() -> Void)? = onDontKnow == nil
             ? nil
-            : { withAnimation { viewModel.markUnknown() } }
+            : {
+                goingForward = true
+                withAnimation(FaroTheme.springSmooth) { viewModel.markUnknown() }
+            }
 
         return CrisisQuestionView(
             step: viewModel.stepNumber,
@@ -252,10 +268,11 @@ struct CrisisModeView: View {
     }
 
     private func next() {
+        goingForward = true
         if viewModel.isLastStep {
             finish()
         } else {
-            withAnimation { viewModel.advance() }
+            withAnimation(FaroTheme.springSmooth) { viewModel.advance() }
         }
     }
 

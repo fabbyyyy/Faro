@@ -16,44 +16,53 @@ struct CaseDashboardCard: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            Image(systemName: symbolName)
-                .font(.title3)
-                .foregroundStyle(tint)
-                .frame(width: 36, height: 36)
-                .background(tint.opacity(0.10))
-                .clipShape(RoundedRectangle(cornerRadius: FaroTheme.smallCornerRadius, style: .continuous))
-                .accessibilityHidden(true)
+            iconView
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.headline)
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
                 Text(subtitle)
-                    .font(.subheadline)
+                    .font(.caption)
                     .foregroundStyle(FaroTheme.secondaryText)
                     .lineLimit(2)
             }
 
-            Spacer()
+            Spacer(minLength: 8)
 
-            if badgeCount > 0 {
-                Text("\(badgeCount)")
-                    .font(.subheadline.weight(.semibold))
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 4)
-                    .background(FaroTheme.amber.opacity(0.16))
-                    .foregroundStyle(FaroTheme.amber)
-                    .clipShape(Capsule())
-                    .accessibilityLabel("\(badgeCount) elementos pendientes")
+            HStack(spacing: 8) {
+                if badgeCount > 0 {
+                    Text("\(badgeCount)")
+                        .font(.caption.weight(.bold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(FaroTheme.amber)
+                        .foregroundStyle(.white)
+                        .clipShape(Capsule())
+                        .accessibilityLabel("\(badgeCount) elementos pendientes")
+                }
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(FaroTheme.secondaryText.opacity(0.45))
             }
-
-            Image(systemName: "chevron.right")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(FaroTheme.secondaryText.opacity(0.6))
-                .accessibilityHidden(true)
         }
-        .faroCard()
+        .padding(.horizontal, FaroTheme.cardPadding)
+        .padding(.vertical, 14)
+        .background(FaroTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: FaroTheme.cornerRadius, style: .continuous))
+        .shadow(color: .black.opacity(0.04), radius: 6, x: 0, y: 1)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
+    }
+
+    private var iconView: some View {
+        Image(systemName: symbolName)
+            .font(.system(size: 16, weight: .medium))
+            .foregroundStyle(tint)
+            .frame(width: 38, height: 38)
+            .background(tint.opacity(0.09))
+            .clipShape(RoundedRectangle(cornerRadius: FaroTheme.smallCornerRadius, style: .continuous))
+            .accessibilityHidden(true)
     }
 }

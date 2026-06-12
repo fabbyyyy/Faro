@@ -49,7 +49,7 @@ struct TimelineView: View {
                             TimelineEventCard(event: event,
                                               isConflicting: conflictingIDs.contains(event.id))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(FaroCardButtonStyle())
                         .accessibilityHint("Toca para revisar, confirmar o editar este evento")
 
                         if let gap = gapAfter(index: index) {

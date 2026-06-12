@@ -73,6 +73,15 @@ enum FaroTheme {
     static let cardPadding: CGFloat = 18
     static let screenPadding: CGFloat = 20
     static let sectionSpacing: CGFloat = 24
+
+    // MARK: - Animaciones
+
+    /// Respuesta rápida para botones y tarjetas (press feedback).
+    static let springSnappy = Animation.spring(response: 0.25, dampingFraction: 0.72)
+    /// Transición fluida para modales y pasos del flujo.
+    static let springSmooth  = Animation.spring(response: 0.38, dampingFraction: 0.78)
+    /// Entrada de elementos en pantalla.
+    static let springEntrance = Animation.spring(response: 0.50, dampingFraction: 0.80)
 }
 
 // MARK: - Color adaptable claro/oscuro
@@ -103,6 +112,15 @@ extension View {
     func faroCard() -> some View {
         modifier(FaroCardModifier())
     }
+
+    /// Animación de entrada escalonada: opacidad + deslizamiento hacia arriba.
+    /// Llama con `appeared` cambiando de false → true dentro de onAppear.
+    func faroEntrance(visible: Bool, delay: Double = 0) -> some View {
+        self
+            .opacity(visible ? 1 : 0)
+            .offset(y: visible ? 0 : 14)
+            .animation(FaroTheme.springEntrance.delay(delay), value: visible)
+    }
 }
 
 // MARK: - Estilos de botón
@@ -117,10 +135,11 @@ struct FaroPrimaryButtonStyle: ButtonStyle {
             .frame(maxWidth: fullWidth ? .infinity : nil)
             .padding(.vertical, 16)
             .padding(.horizontal, 20)
-            .background(FaroTheme.night.opacity(configuration.isPressed ? 0.85 : 1))
+            .background(FaroTheme.night.opacity(configuration.isPressed ? 0.82 : 1))
             .foregroundStyle(Color(light: .white, dark: Color(red: 0.07, green: 0.09, blue: 0.13)))
             .clipShape(RoundedRectangle(cornerRadius: FaroTheme.cornerRadius, style: .continuous))
-            .opacity(configuration.isPressed ? 0.9 : 1)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .animation(FaroTheme.springSnappy, value: configuration.isPressed)
     }
 }
 
@@ -134,14 +153,15 @@ struct FaroSecondaryButtonStyle: ButtonStyle {
             .frame(maxWidth: fullWidth ? .infinity : nil)
             .padding(.vertical, 16)
             .padding(.horizontal, 20)
-            .background(FaroTheme.surface)
+            .background(FaroTheme.surface.opacity(configuration.isPressed ? 0.85 : 1))
             .foregroundStyle(FaroTheme.night)
             .clipShape(RoundedRectangle(cornerRadius: FaroTheme.cornerRadius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: FaroTheme.cornerRadius, style: .continuous)
                     .strokeBorder(FaroTheme.night.opacity(0.25), lineWidth: 1)
             )
-            .opacity(configuration.isPressed ? 0.8 : 1)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .animation(FaroTheme.springSnappy, value: configuration.isPressed)
     }
 }
 
@@ -153,7 +173,19 @@ struct FaroQuietButtonStyle: ButtonStyle {
             .padding(.vertical, 12)
             .padding(.horizontal, 16)
             .foregroundStyle(FaroTheme.secondaryText)
-            .opacity(configuration.isPressed ? 0.6 : 1)
+            .opacity(configuration.isPressed ? 0.5 : 1)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .animation(FaroTheme.springSnappy, value: configuration.isPressed)
+    }
+}
+
+/// Estilo de tarjeta interactiva: escala sutil al presionar.
+struct FaroCardButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .brightness(configuration.isPressed ? -0.02 : 0)
+            .animation(FaroTheme.springSnappy, value: configuration.isPressed)
     }
 }
 

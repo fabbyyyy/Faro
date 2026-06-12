@@ -14,7 +14,7 @@ struct TimelineEventCard: View {
     var isConflicting: Bool = false
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: 0) {
             // Columna de hora
             VStack(spacing: 2) {
                 Text(event.date, format: .dateTime.hour().minute())
@@ -23,11 +23,14 @@ struct TimelineEventCard: View {
                     .font(.caption2)
                     .foregroundStyle(FaroTheme.secondaryText)
             }
-            .frame(width: 58)
+            .frame(width: 54)
 
-            RoundedRectangle(cornerRadius: 2)
-                .fill(FaroTheme.color(for: event.validationState).opacity(0.5))
-                .frame(width: 3)
+            // Línea de estado con indicador de color accesible
+            Capsule()
+                .fill(FaroTheme.color(for: event.validationState).opacity(0.55))
+                .frame(width: 4)
+                .padding(.horizontal, 8)
+                .frame(maxHeight: .infinity)
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 8) {
@@ -60,6 +63,7 @@ struct TimelineEventCard: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(FaroTheme.amber.opacity(0.10))
                         .clipShape(RoundedRectangle(cornerRadius: FaroTheme.smallCornerRadius, style: .continuous))
+                        .transition(.scale(scale: 0.96).combined(with: .opacity))
                         .accessibilityLabel("Atención: hay dos horarios distintos para este momento. Revisa cuál está confirmado.")
                 }
             }

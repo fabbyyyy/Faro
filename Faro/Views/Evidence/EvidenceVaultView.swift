@@ -37,7 +37,7 @@ struct EvidenceVaultView: View {
                         } label: {
                             EvidenceCard(evidence: item)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(FaroCardButtonStyle())
                         .accessibilityHint("Toca para revisar y validar esta evidencia")
                     }
                 }

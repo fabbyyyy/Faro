@@ -17,21 +17,52 @@ struct CaseDashboardView: View {
 
     private let services = AppServices.shared
     @State private var aiSummary: String?
+    @State private var appeared = false
 
     private var rules: [CompletenessRule] { services.scoring.evaluate(caseFile) }
+
+    // Agrupación semántica de secciones
+    private let coreSections:  [CaseSection] = [.timeline, .evidence, .validation, .questions]
+    private let toolSections:  [CaseSection] = [.poster, .report, .trust, .map]
+    private let systemSections:[CaseSection] = [.privacy, .settings]
 
     var body: some View {
         ScrollView {
             VStack(spacing: FaroTheme.sectionSpacing) {
                 personHeader
+                    .faroEntrance(visible: appeared, delay: 0.0)
+
                 completenessCard
+                    .faroEntrance(visible: appeared, delay: 0.05)
 
                 if !rules.unmet.isEmpty {
                     missingInfoSection
+                        .faroEntrance(visible: appeared, delay: 0.10)
                 }
 
                 aiSummaryCard
-                sectionsGrid
+                    .faroEntrance(visible: appeared, delay: 0.12)
+
+                sectionGroup(
+                    title: "Expediente",
+                    subtitle: "Registra y organiza los datos del caso",
+                    sections: coreSections,
+                    startDelay: 0.16
+                )
+
+                sectionGroup(
+                    title: "Herramientas",
+                    subtitle: "Genera documentos y localiza zonas",
+                    sections: toolSections,
+                    startDelay: 0.28
+                )
+
+                sectionGroup(
+                    title: "Sistema",
+                    subtitle: nil,
+                    sections: systemSections,
+                    startDelay: 0.38
+                )
             }
             .padding(FaroTheme.screenPadding)
             .frame(maxWidth: 700)
@@ -40,6 +71,7 @@ struct CaseDashboardView: View {
         .background(FaroTheme.background)
         .navigationTitle("Resumen del caso")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { withAnimation { appeared = true } }
     }
 
     // MARK: - Persona
@@ -99,18 +131,37 @@ struct CaseDashboardView: View {
 
     private var completenessCard: some View {
         let percent = rules.completenessPercent
-        return VStack(alignment: .leading, spacing: 10) {
-            HStack {
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
                 Text("Información reunida")
                     .font(.headline)
                 Spacer()
                 Text("\(percent)%")
-                    .font(.title3.weight(.semibold).monospacedDigit())
+                    .font(.title2.weight(.semibold).monospacedDigit())
                     .foregroundStyle(FaroTheme.night)
             }
 
-            ProgressView(value: Double(percent), total: 100)
-                .tint(FaroTheme.amber)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(FaroTheme.secondaryText.opacity(0.12))
+                        .frame(height: 7)
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [FaroTheme.amber, FaroTheme.amber.opacity(0.75)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(
+                            width: max(7, geo.size.width * CGFloat(percent) / 100),
+                            height: 7
+                        )
+                        .animation(FaroTheme.springSmooth.delay(0.15), value: percent)
+                }
+            }
+            .frame(height: 7)
 
             Text("Guía orientativa de qué falta por reunir. No es un valor oficial.")
                 .font(.caption)
@@ -178,20 +229,23 @@ struct CaseDashboardView: View {
         .faroCard()
     }
 
-    // MARK: - Acceso a módulos
+    // MARK: - Grupos de secciones
 
-    private var sectionsGrid: some View {
-        VStack(spacing: 12) {
-            FaroSectionHeader(title: "Expediente")
+    private func sectionGroup(
+        title: String,
+        subtitle: String?,
+        sections: [CaseSection],
+        startDelay: Double
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            FaroSectionHeader(title: title, subtitle: subtitle)
+                .faroEntrance(visible: appeared, delay: startDelay)
 
-            ForEach(dashboardSections, id: \.self) { section in
+            ForEach(Array(sections.enumerated()), id: \.element) { index, section in
                 sectionLink(section)
+                    .faroEntrance(visible: appeared, delay: startDelay + Double(index) * 0.04 + 0.04)
             }
         }
-    }
-
-    private var dashboardSections: [CaseSection] {
-        [.timeline, .evidence, .validation, .questions, .poster, .report, .trust, .map, .privacy, .settings]
     }
 
     @ViewBuilder
@@ -205,10 +259,10 @@ struct CaseDashboardView: View {
 
         if let onNavigate {
             Button { onNavigate(section) } label: { card }
-                .buttonStyle(.plain)
+                .buttonStyle(FaroCardButtonStyle())
         } else {
             NavigationLink(value: section) { card }
-                .buttonStyle(.plain)
+                .buttonStyle(FaroCardButtonStyle())
         }
     }
 

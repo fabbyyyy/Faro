@@ -77,13 +77,34 @@ struct CaseContainerView: View {
     // MARK: - iPad: case board
 
     private var splitLayout: some View {
-        NavigationSplitView {
-            List(CaseSection.allCases, selection: $selectedSection) { section in
-                Label(section.title, systemImage: section.symbolName)
-                    .badge(badgeCount(for: section))
-                    .tag(section)
+        NavigationSplitView(columnVisibility: .constant(.all)) {
+            List(selection: $selectedSection) {
+                Section("Resumen") {
+                    sidebarLabel(for: .dashboard)
+                }
+
+                Section("Expediente") {
+                    sidebarLabel(for: .timeline)
+                    sidebarLabel(for: .evidence)
+                    sidebarLabel(for: .validation)
+                    sidebarLabel(for: .questions)
+                }
+
+                Section("Herramientas") {
+                    sidebarLabel(for: .poster)
+                    sidebarLabel(for: .report)
+                    sidebarLabel(for: .trust)
+                    sidebarLabel(for: .map)
+                }
+
+                Section("Sistema") {
+                    sidebarLabel(for: .privacy)
+                    sidebarLabel(for: .settings)
+                }
             }
+            .listStyle(.sidebar)
             .navigationTitle(caseFile.person?.displayName ?? "Expediente")
+            .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 300)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
@@ -99,6 +120,12 @@ struct CaseContainerView: View {
                 sectionView(selectedSection ?? .dashboard)
             }
         }
+    }
+
+    private func sidebarLabel(for section: CaseSection) -> some View {
+        Label(section.title, systemImage: section.symbolName)
+            .badge(badgeCount(for: section))
+            .tag(section)
     }
 
     // MARK: - iPhone: pila guiada
