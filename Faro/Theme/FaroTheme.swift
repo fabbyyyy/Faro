@@ -156,7 +156,7 @@ struct FaroPrimaryButtonStyle: ButtonStyle {
             .padding(.horizontal, 20)
             .background(FaroTheme.night.opacity(configuration.isPressed ? 0.82 : 1))
             .foregroundStyle(Color(light: .white, dark: Color(red: 0.043, green: 0.075, blue: 0.122)))
-            .clipShape(RoundedRectangle(cornerRadius: FaroTheme.cornerRadius, style: .continuous))
+            .clipShape(Capsule())
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .animation(FaroTheme.springSnappy, value: configuration.isPressed)
     }
@@ -174,11 +174,8 @@ struct FaroSecondaryButtonStyle: ButtonStyle {
             .padding(.horizontal, 20)
             .background(FaroTheme.surface.opacity(configuration.isPressed ? 0.85 : 1))
             .foregroundStyle(FaroTheme.night)
-            .clipShape(RoundedRectangle(cornerRadius: FaroTheme.cornerRadius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: FaroTheme.cornerRadius, style: .continuous)
-                    .strokeBorder(FaroTheme.night.opacity(0.25), lineWidth: 1)
-            )
+            .clipShape(Capsule())
+            .overlay(Capsule().strokeBorder(FaroTheme.night.opacity(0.25), lineWidth: 1))
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .animation(FaroTheme.springSnappy, value: configuration.isPressed)
     }
