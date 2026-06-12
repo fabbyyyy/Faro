@@ -20,12 +20,13 @@ struct CaseDashboardView: View {
     @State private var aiSummary: String?
     @State private var appeared = false
     @State private var skeletonPulsing = false
+    @State private var showingMissingInfo = false
     @State private var selectedPhoto: PhotosPickerItem?
 
     private var rules: [CompletenessRule] { services.scoring.evaluate(caseFile) }
 
     // Agrupación semántica de secciones
-    private let coreSections:  [CaseSection] = [.chat, .timeline, .evidence, .validation, .questions]
+    private let coreSections:  [CaseSection] = [.timeline, .evidence, .validation]
     private let systemSections:[CaseSection] = [.privacy, .settings]
 
     var body: some View {
@@ -49,12 +50,7 @@ struct CaseDashboardView: View {
                 urgentActions
                     .faroEntrance(visible: appeared, delay: 0.05)
 
-                if !rules.unmet.isEmpty {
-                    missingInfoSection
-                        .faroEntrance(visible: appeared, delay: 0.12)
-                }
-
-                sectionGroup(
+                gridSectionGroup(
                     title: "Expediente",
                     subtitle: "Registra y organiza los datos del caso",
                     sections: coreSections,
@@ -87,6 +83,10 @@ struct CaseDashboardView: View {
                 progressOrb
             }
         }
+        .sheet(isPresented: $showingMissingInfo) {
+            missingInfoSheet
+                .presentationDetents([.medium, .large])
+        }
         .onAppear { withAnimation { appeared = true } }
         .onChange(of: selectedPhoto) { _, item in
             Task {
@@ -115,7 +115,7 @@ struct CaseDashboardView: View {
         let pending = caseFile.pendingReviewCount
         if pending > 0 {
             return NextStep(
-                section: .validation,
+                section: .chat,
                 title: "Revisa los pendientes con Beacon",
                 detail: "\(pending) dato\(pending == 1 ? "" : "s") sugerido\(pending == 1 ? "" : "s") espera\(pending == 1 ? "" : "n") tu confirmación.",
                 symbol: "checkmark.seal"
@@ -339,44 +339,22 @@ struct CaseDashboardView: View {
         .frame(width: 40, height: 40)
         .contentShape(Circle())
 
-        Group {
-            if let onNavigate {
-                Button { onNavigate(.chat) } label: { orb }
-                    .buttonStyle(.plain)
-            } else {
-                NavigationLink(value: CaseSection.chat) { orb }
-                    .buttonStyle(.plain)
-            }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Información reunida: \(percent) por ciento. Guía orientativa, no es un valor oficial.")
-        .accessibilityHint("Continúa completando datos con el asistente")
+        Button { showingMissingInfo = true } label: { orb }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Información reunida: \(percent) por ciento. Guía orientativa, no es un valor oficial.")
+            .accessibilityHint("Muestra qué información falta por reunir")
     }
 
-    // MARK: - Información faltante
-
-    private var missingInfoSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            FaroSectionHeader(title: "Qué falta por reunir",
-                              subtitle: "Puedes completarlo cuando tengas el dato. No necesitas tener todo ahora.")
-            ForEach(rules.unmet.prefix(4)) { rule in
-                HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: "circle.dashed")
-                        .foregroundStyle(FaroTheme.amber)
-                        .padding(.top, 2)
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(rule.title).font(.subheadline.weight(.medium))
-                        Text(rule.suggestion)
-                            .font(.caption)
-                            .foregroundStyle(FaroTheme.secondaryText)
-                    }
-                    Spacer()
-                }
-                .faroCard()
-                .accessibilityElement(children: .combine)
+    /// Hoja unificada de datos del caso (la misma del chat).
+    /// "Editar" lleva al asistente para corregir el dato.
+    private var missingInfoSheet: some View {
+        CaseDataPanel(caseFile: caseFile, onEdit: onNavigate.map { navigate in
+            { _ in
+                showingMissingInfo = false
+                navigate(.chat)
             }
-        }
+        })
     }
 
     // MARK: - Resumen de IA (siempre marcado como sugerencia)
@@ -422,6 +400,77 @@ struct CaseDashboardView: View {
     }
 
     // MARK: - Grupos de secciones
+
+    /// Grupo en cuadrícula, con el mismo estilo de "Difundir y reportar".
+    private func gridSectionGroup(
+        title: String,
+        subtitle: String?,
+        sections: [CaseSection],
+        startDelay: Double
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            FaroSectionHeader(title: title, subtitle: subtitle)
+                .faroEntrance(visible: appeared, delay: startDelay)
+
+            // Filas de dos; si el conteo es impar, el último se
+            // extiende a todo el ancho para no dejar un hueco.
+            let pairedCount = sections.count - (sections.count % 2)
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10),
+                                GridItem(.flexible(), spacing: 10)],
+                      spacing: 10) {
+                ForEach(Array(sections.prefix(pairedCount).enumerated()), id: \.element) { index, section in
+                    squareSectionLink(section)
+                        .faroEntrance(visible: appeared, delay: startDelay + Double(index) * 0.04 + 0.04)
+                }
+            }
+            if let last = sections.last, sections.count % 2 == 1 {
+                squareSectionLink(last)
+                    .faroEntrance(visible: appeared,
+                                  delay: startDelay + Double(pairedCount) * 0.04 + 0.04)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func squareSectionLink(_ section: CaseSection) -> some View {
+        let badge = badgeCount(for: section)
+        let square = VStack(spacing: 8) {
+            Image(systemName: section.symbolName)
+                .font(.system(size: 24, weight: .light))
+                .foregroundStyle(FaroTheme.night)
+                .frame(height: 32)
+            Text(section.title)
+                .font(.subheadline.weight(.medium))
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.primary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 16)
+        .padding(.horizontal, 8)
+        .background(FaroTheme.night.opacity(0.07))
+        .clipShape(RoundedRectangle(cornerRadius: FaroTheme.cornerRadius, style: .continuous))
+        .overlay(alignment: .topTrailing) {
+            if badge > 0 {
+                Text("\(badge)")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(FaroTheme.amber, in: Capsule())
+                    .padding(8)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(section.title)\(badge > 0 ? ", \(badge) pendientes" : "")")
+
+        if let onNavigate {
+            Button { onNavigate(section) } label: { square }
+                .buttonStyle(FaroCardButtonStyle())
+        } else {
+            NavigationLink(value: section) { square }
+                .buttonStyle(FaroCardButtonStyle())
+        }
+    }
 
     private func sectionGroup(
         title: String,

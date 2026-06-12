@@ -159,6 +159,9 @@ final class ChatIntakeViewModel {
         if let hasPhone = person.carriedPhone {
             mark("phone", value: hasPhone ? "Sí, llevaba celular" : "No llevaba celular")
         }
+        if person.photoData != nil {
+            mark("photo", value: "Foto agregada al expediente")
+        }
         if !caseFile.evidence.isEmpty {
             mark("evidenceAvailable", value: "Sí")
         }
@@ -592,6 +595,35 @@ final class ChatIntakeViewModel {
                                                     phone: phone.trimmingCharacters(in: .whitespaces),
                                                     role: .familyAdmin))
         }
+    }
+
+    // MARK: Foto de la persona desde el chat
+
+    /// Registra la foto adjuntada en el chat: se guarda en el expediente,
+    /// marca la pregunta de foto como respondida y, si era la pregunta
+    /// activa, el flujo avanza solo.
+    func registerPersonPhoto(_ data: Data) {
+        let person = caseFile.person ?? {
+            let newPerson = MissingPerson()
+            caseFile.person = newPerson
+            return newPerson
+        }()
+        person.photoData = data
+
+        let wasActive = activeQuestion?.key == "photo"
+        updateState(for: "photo") { state in
+            state.status = state.status.isOpen ? .answered : .edited
+            state.formalValue = "Foto agregada al expediente"
+        }
+
+        caseFile.promoteStatus(to: .inProgress)
+        caseFile.touch()
+        refreshDraftFicha()
+        appendAssistant("Guardé la foto en el expediente. Se usará solo donde tú decidas: ficha, cartel o reporte.", kind: .normal)
+        if wasActive {
+            advanceFlow()
+        }
+        persist()
     }
 
     // MARK: Avance del flujo y repreguntas inteligentes

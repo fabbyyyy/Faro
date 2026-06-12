@@ -507,11 +507,9 @@ private extension View {
                 Task {
                     if let data = try? await item?.loadTransferable(type: Data.self) {
                         await MainActor.run {
-                            if viewModel.caseFile.person == nil {
-                                viewModel.caseFile.person = MissingPerson()
-                            }
-                            viewModel.caseFile.person?.photoData = data
-                            viewModel.persist()
+                            // El view model marca la pregunta de foto como
+                            // respondida y avanza el flujo si estaba activa.
+                            viewModel.registerPersonPhoto(data)
                         }
                     }
                 }

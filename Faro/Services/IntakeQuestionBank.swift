@@ -86,6 +86,28 @@ struct IntakeQuestion: Identifiable, Hashable {
     }
 
     var id: String { key }
+
+    /// Símbolo SF relacionado con el dato, para listas y paneles.
+    var symbolName: String {
+        switch key {
+        case "personName":          return "person.text.rectangle"
+        case "age":                 return "calendar"
+        case "photo":               return "photo"
+        case "lastSeenTime":        return "clock"
+        case "lastSeenPlace":       return "mappin.and.ellipse"
+        case "clothing":            return "tshirt"
+        case "physicalDescription": return "figure.stand"
+        case "distinguishingMarks": return "person.fill.viewfinder"
+        case "medical":             return "cross.case"
+        case "phone":               return "iphone"
+        case "transport":           return "bus"
+        case "frequentPlaces":      return "map"
+        case "companions":          return "person.2"
+        case "trustedContact":      return "person.crop.circle.badge.checkmark"
+        case "evidenceAvailable":   return "tray.full"
+        default:                    return "circle.dashed"
+        }
+    }
 }
 
 /// Repositorio del flujo base. Orden por prioridad.
